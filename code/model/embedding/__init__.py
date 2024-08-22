@@ -1,1 +1,1 @@
-from .bert import BERTEmbedding
+from .spectral_bert import BERTEmbedding

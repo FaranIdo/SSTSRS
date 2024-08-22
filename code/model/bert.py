@@ -24,20 +24,17 @@ class BERT(nn.Module):
 
         feed_forward_hidden = hidden * 4
 
-        self.embedding = BERTEmbedding(num_features)
+        self.embedding = BERTEmbedding(num_features, hidden, dropout)
 
         encoder_layer = TransformerEncoderLayer(hidden, attn_heads, feed_forward_hidden, dropout)
         encoder_norm = LayerNorm(hidden)
 
         self.transformer_encoder = TransformerEncoder(encoder_layer, n_layers, encoder_norm)
 
-    def forward(self, x, doy, mask):
-        mask = mask == 0
-
-        x = self.embedding(input_sequence=x, doy_sequence=doy)
-
+    def forward(self, x, year_seq):
+        x = self.embedding(input_sequence=x, year_seq=year_seq)
         x = x.transpose(0, 1)
-        x = self.transformer_encoder(x, src_key_padding_mask=mask)
+        x = self.transformer_encoder(x)
         x = x.transpose(0, 1)
 
         return x

@@ -1,10 +1,9 @@
 import torch
-from dataset.dataset_wrapper import DataSetWrapper
-from model import BERT
-from trainer import BERTTrainer
 import numpy as np
 import random
 import argparse
+from dataset.data_loader import LandsatDataLoader
+import logging
 
 def setup_seed(seed):
     torch.manual_seed(seed)
@@ -49,11 +48,7 @@ def Config():
         type=int,
         help="Number of loader worker processes.",
     )
-    parser.add_argument(
-        "--valid_rate",
-        default=0.03,
-        type=float,
-        help="Proportion of samples used for validation")
+    parser.add_argument("--split_rate", default=0.1, type=float, help="Proportion of samples used for validation")
     parser.add_argument(
         "--max_length",
         default=75,
@@ -142,44 +137,57 @@ def Config():
     return parser.parse_args()
 
 
-if __name__ == "__main__":
+def main():
     setup_seed(0)
+    logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S")
     config = Config()
 
-    print("Loading datasets...")
-    dataset = DataSetWrapper(data_path=config.dataset_path,
-                             batch_size=config.batch_size,
-                             valid_size=config.valid_rate,
-                             num_features=config.num_features,
-                             patch_size=config.patch_size,
-                             max_length=config.max_length,
-                             mask_rate=config.mask_rate,
-                             num_workers=config.num_workers)
+    logging.info("Loading datasets...")
+    loader = LandsatDataLoader(config.dataset_path, config.batch_size, config.split_rate, config.num_workers)
 
-    train_loader, valid_loader = dataset.get_data_loaders()
+    train_loader, val_loader = loader.create_data_loaders()
 
-    print("Initialing SITS-Former...")
-    bert = BERT(num_features=config.num_features,
-                hidden=config.hidden_size,
-                n_layers=config.layers,
-                attn_heads=config.attn_heads,
-                dropout=config.dropout)
+    # Now train_loader and val_loader are ready to be used for model training
 
-    trainer = BERTTrainer(bert, config.num_features,
-                          train_loader=train_loader,
-                          valid_loader=valid_loader,
-                          lr=config.learning_rate,
-                          warmup_epochs=config.warmup_epochs,
-                          decay_gamma=config.decay_gamma,
-                          gradient_clipping_value=config.gradient_clipping,
-                          with_cuda=config.with_cuda,
-                          cuda_devices=config.cuda_devices)
 
-    print("Pre-training SITS-Former...")
-    mini_loss = np.Inf
-    for epoch in range(config.epochs):
-        train_loss, valida_loss = trainer.train(epoch)
-        if mini_loss > valida_loss:
-            mini_loss = valida_loss
-            trainer.save(epoch, config.pretrain_path)
+if __name__ == "__main__":
+    main()
+    # setup_seed(0)
+    # config = Config()
 
+    # print("Loading datasets...")
+    # dataset = DataSetWrapper(data_path=config.dataset_path,
+    #                          batch_size=config.batch_size,
+    #                          valid_size=config.split_rate,
+    #                          num_features=config.num_features,
+    #                          patch_size=config.patch_size,
+    #                          max_length=config.max_length,
+    #                          mask_rate=config.mask_rate,
+    #                          num_workers=config.num_workers)
+
+    # train_loader, valid_loader = dataset.get_data_loaders()
+
+    # print("Initialing SITS-Former...")
+    # bert = BERT(num_features=config.num_features,
+    #             hidden=config.hidden_size,
+    #             n_layers=config.layers,
+    #             attn_heads=config.attn_heads,
+    #             dropout=config.dropout)
+
+    # trainer = BERTTrainer(bert, config.num_features,
+    #                       train_loader=train_loader,
+    #                       valid_loader=valid_loader,
+    #                       lr=config.learning_rate,
+    #                       warmup_epochs=config.warmup_epochs,
+    #                       decay_gamma=config.decay_gamma,
+    #                       gradient_clipping_value=config.gradient_clipping,
+    #                       with_cuda=config.with_cuda,
+    #                       cuda_devices=config.cuda_devices)
+
+    # print("Pre-training SITS-Former...")
+    # mini_loss = np.Inf
+    # for epoch in range(config.epochs):
+    #     train_loss, valida_loss = trainer.train(epoch)
+    #     if mini_loss > valida_loss:
+    #         mini_loss = valida_loss
+    #         trainer.save(epoch, config.pretrain_path)
