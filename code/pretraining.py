@@ -4,6 +4,8 @@ import random
 import argparse
 from dataset import LandsatDataLoader
 import logging
+from model import BERT
+from trainer import BERTTrainer
 
 def setup_seed(seed):
     torch.manual_seed(seed)
@@ -64,9 +66,9 @@ def Config():
     )
     parser.add_argument(
         "--num_features",
-        default=10,
+        default=1,
         type=int,
-        help="The dimensionality of satellite observations.",
+        help="The spectral dimensionality of satellite observations.",
     )
     parser.add_argument(
         "--mask_rate",
@@ -148,7 +150,29 @@ def main():
 
     train_loader, val_loader = loader.create_data_loaders()
 
-    # Now train_loader and val_loader are ready to be used for model training
+    # NDVI Data so num_features = 1
+    bert = BERT(num_features=1, hidden=config.hidden_size, n_layers=config.layers, attn_heads=config.attn_heads, dropout=config.dropout)
+
+    trainer = BERTTrainer(
+        bert,
+        config.num_features,
+        train_loader,
+        val_loader,
+        lr=config.learning_rate,
+        warmup_epochs=config.warmup_epochs,
+        decay_gamma=config.decay_gamma,
+        gradient_clipping_value=config.gradient_clipping,
+        with_cuda=config.with_cuda,
+        cuda_devices=config.cuda_devices,
+    )
+
+    print("Pre-training SITS-Former...")
+    mini_loss = np.Inf
+    for epoch in range(config.epochs):
+        train_loss, valida_loss = trainer.train(epoch)
+        if mini_loss > valida_loss:
+            mini_loss = valida_loss
+            trainer.save(epoch, config.pretrain_path)
 
 
 if __name__ == "__main__":

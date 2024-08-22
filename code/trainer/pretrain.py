@@ -7,6 +7,7 @@ from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from model import BERT, BERTPrediction
+import logging
 
 torch.manual_seed(0)
 
@@ -19,6 +20,9 @@ class BERTTrainer:
                  gradient_clipping_value=5.0, with_cuda: bool = True, cuda_devices=None):
 
         cuda_condition = torch.cuda.is_available() and with_cuda
+        import ipdb
+
+        ipdb.set_trace()
         self.device = torch.device("cuda" if cuda_condition else "cpu")
 
         self.bert = bert
@@ -44,6 +48,8 @@ class BERTTrainer:
         self.writer = SummaryWriter()
 
     def train(self, epoch):
+        logging.info("Training model on device: %s", self.device)
+
         self.model.train()
 
         data_iter = tqdm(enumerate(self.train_loader),
@@ -146,5 +152,3 @@ class BERTTrainer:
             return input_path
         except IOError:
             print("Error: parameter file does not exist!")
-
-

@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.nn.modules.transformer import TransformerEncoder, TransformerEncoderLayer
 from torch.nn.modules import LayerNorm
 
-from .embedding import BERTEmbedding
+from .embedding import SpectralBERTEmbedding
 
 
 class BERT(nn.Module):
@@ -24,7 +24,7 @@ class BERT(nn.Module):
 
         feed_forward_hidden = hidden * 4
 
-        self.embedding = BERTEmbedding(num_features, hidden, dropout)
+        self.embedding = SpectralBERTEmbedding(num_features, hidden, dropout)
 
         encoder_layer = TransformerEncoderLayer(hidden, attn_heads, feed_forward_hidden, dropout)
         encoder_norm = LayerNorm(hidden)

@@ -3,9 +3,9 @@ import torch.nn as nn
 from .position import PositionalEncoding
 
 
-class BERTEmbedding(nn.Module):
+class SpectralBERTEmbedding(nn.Module):
     """
-    BERT Embedding which is consisted with under features
+    Spectral BERT Embedding which is consisted with under features
         1. InputEmbedding : project the input to embedding size through a fully connected layer
         2. PositionalEncoding : adding positional information using sin, cos
 
