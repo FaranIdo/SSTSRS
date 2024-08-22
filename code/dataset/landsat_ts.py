@@ -64,7 +64,11 @@ class LandsatSpectralDataset(Dataset):
         sample_idx = 0
         for pixel in tqdm(range(num_pixels), desc="Processing pixels"):
             for i in range(seq_len - window_size):
+                # Extracting a window of size 'window_size' from the NDVI data for the current pixel and time step 'i'.
+                # This window will serve as the input (X) for the model.
                 X[sample_idx] = ndvi_data[i : i + window_size, pixel]
+                # The value of the NDVI data at the next time step (i + window_size) for the current pixel is used as the output (y).
+                # This output is what the model is expected to predict based on the input window.
                 y[sample_idx] = ndvi_data[i + window_size, pixel]
                 sample_idx += 1
 
