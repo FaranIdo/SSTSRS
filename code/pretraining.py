@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import random
 import argparse
-from dataset.data_loader import LandsatDataLoader
+from dataset import LandsatDataLoader
 import logging
 
 def setup_seed(seed):
@@ -134,6 +134,7 @@ def Config():
         type=float,
         help="",
     )
+    parser.add_argument("--window_size", default=5, type=int, help="time series window size of the data - how many timesteps to look at to predict the next timestep")
     return parser.parse_args()
 
 
@@ -143,7 +144,7 @@ def main():
     config = Config()
 
     logging.info("Loading datasets...")
-    loader = LandsatDataLoader(config.dataset_path, config.batch_size, config.split_rate, config.num_workers)
+    loader = LandsatDataLoader(config.dataset_path, config.batch_size, config.split_rate, config.num_workers, config.window_size)
 
     train_loader, val_loader = loader.create_data_loaders()
 

@@ -4,15 +4,16 @@ import logging
 
 
 class LandsatDataLoader:
-    def __init__(self, dataset_path: str, batch_size: int, split_rate: float, num_workers: int = 4):
+
+    def __init__(self, dataset_path: str, batch_size: int, split_rate: float, num_workers: int = 4, window_size: int = 5):
         self.dataset_path = dataset_path
         self.batch_size = batch_size
         self.split_rate = split_rate
         self.num_workers = num_workers
-        self.dataset = LandsatSpectralDataset(self.dataset_path)
+        self.dataset = LandsatSpectralDataset(self.dataset_path, window_size)
 
     def create_data_loaders(self):
-        logging.info("Creating data loaders...")
+        logging.info(f"Creating data loaders with batch_size: {self.batch_size}, split_rate: {self.split_rate}, num_workers: {self.num_workers}")
 
         # Calculate the split
         train_size = int(self.split_rate * len(self.dataset))

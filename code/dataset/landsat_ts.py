@@ -8,8 +8,10 @@ import logging
 
 
 class LandsatSpectralDataset(Dataset):
-    def __init__(self, dataset_path: str):
-        self.processed_data_path: str = os.path.join(os.path.dirname(dataset_path), "processed_data.npz")
+
+    def __init__(self, dataset_path: str, window_size: int):
+        self.processed_data_path: str = os.path.join(os.path.dirname(dataset_path), f"processed_data_window_size_{window_size}_timesteps.npz")
+        self.window_size = window_size
 
         if os.path.exists(self.processed_data_path):
             logging.info("Loading pre-processed data...")
@@ -28,8 +30,8 @@ class LandsatSpectralDataset(Dataset):
         ndvi_data = self.reshape_data(ndvi_data)
         logging.info(f"Reshaped NDVI data shape: {ndvi_data.shape}")
 
-        self.X, self.y = self.create_input_output_pairs(ndvi_data)
-        logging.info(f"Input shape: {self.X.shape}, Output shape: {self.y.shape}")
+        self.X, self.y = self.create_input_output_pairs(ndvi_data, self.window_size)
+        logging.info(f"Input shape: {self.X.shape}, Output shape: {self.y.shape}, Window size: {self.window_size}")
 
         logging.info("Saving processed data...")
         np.savez_compressed(self.processed_data_path, X=self.X, y=self.y)
@@ -43,26 +45,27 @@ class LandsatSpectralDataset(Dataset):
         data = np.load(self.processed_data_path)
         self.X = torch.FloatTensor(data["X"])
         self.y = torch.FloatTensor(data["y"])
-        logging.info(f"Loaded data shapes - Input: {self.X.shape}, Output: {self.y.shape}")
+        logging.info(f"Loaded data shapes - Input: {self.X.shape}, Output: {self.y.shape}, Window size: {self.window_size}")
 
     @staticmethod
     def reshape_data(ndvi_data: np.ndarray) -> np.ndarray:
-        return ndvi_data.reshape(-1, 82).T  # Now shape is (82, 1798*1245)
+        return ndvi_data.reshape(-1, ndvi_data.shape[0]).T  # Now shape is (seq_len, num_pixels)
 
     @staticmethod
-    def create_input_output_pairs(ndvi_data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def create_input_output_pairs(ndvi_data: np.ndarray, window_size: int) -> tuple[np.ndarray, np.ndarray]:
         logging.info("Creating input-output pairs...")
         num_pixels = ndvi_data.shape[1]
-        num_samples = num_pixels * (82 - 5)
+        seq_len = ndvi_data.shape[0]
+        num_samples = num_pixels * (seq_len - window_size)
 
-        X = np.zeros((num_samples, 5), dtype=ndvi_data.dtype)
+        X = np.zeros((num_samples, window_size), dtype=ndvi_data.dtype)
         y = np.zeros(num_samples, dtype=ndvi_data.dtype)
 
         sample_idx = 0
         for pixel in tqdm(range(num_pixels), desc="Processing pixels"):
-            for i in range(82 - 5):
-                X[sample_idx] = ndvi_data[i : i + 5, pixel]
-                y[sample_idx] = ndvi_data[i + 5, pixel]
+            for i in range(seq_len - window_size):
+                X[sample_idx] = ndvi_data[i : i + window_size, pixel]
+                y[sample_idx] = ndvi_data[i + window_size, pixel]
                 sample_idx += 1
 
         logging.info("Input-output pairs created.")
