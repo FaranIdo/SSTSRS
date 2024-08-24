@@ -152,13 +152,16 @@ def main():
 
     mini_loss = np.Inf
     logging.info("Starting training for %d epochs", config.epochs)
-    for epoch in range(config.epochs):
-        train_loss, valida_loss = trainer.train(epoch)
-        if mini_loss > valida_loss:
-            mini_loss = valida_loss
-            trainer.save(epoch)
-
-    trainer.plot_losses()
+    try:
+        for epoch in range(config.epochs):
+            train_loss, valida_loss = trainer.train(epoch)
+            if mini_loss > valida_loss:
+                mini_loss = valida_loss
+                trainer.save(epoch)
+    except KeyboardInterrupt:
+        logging.info("Training interrupted. Saving plots...")
+    finally:
+        trainer.plot_losses()
 
 
 if __name__ == "__main__":
