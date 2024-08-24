@@ -41,11 +41,14 @@ def evaluate_model(model: BERTPrediction, samples: list) -> None:
         with torch.no_grad():
             outputs = model(x, year_seq)
             y = targets[:, 0]
-            outputs = outputs[:, 0]
+            # handle both batched and non-batched outputs
+            if outputs.dim() > 1 and outputs.size(1) > 1:
+                outputs = outputs[:, 0]
             loss = criterion(y, outputs)
             mae = mae_criterion(y, outputs)
 
         print(f"Sample {i+1}:")
+        # print(f"  X: {x.cpu().numpy()}")
         print(f"  True Value: {y.cpu().numpy()}")
         print(f"  Predicted Value: {outputs.cpu().numpy()}")
         print(f"  MSE Loss: {loss.item()}")
@@ -61,7 +64,7 @@ def main():
     logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S")
 
     logging.info("Loading validation dataset...")
-    batch_size = 128
+    batch_size = 1
     split_rate = 0.1
     num_workers = 8
     window_size = 5
