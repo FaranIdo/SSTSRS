@@ -4,7 +4,6 @@ import logging
 
 
 class LandsatDataLoader:
-
     def __init__(self, dataset_path: str, batch_size: int, split_rate: float, num_workers: int = 4, window_size: int = 5):
         self.dataset_path = dataset_path
         self.batch_size = batch_size

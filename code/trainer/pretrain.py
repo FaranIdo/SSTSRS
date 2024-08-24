@@ -20,9 +20,6 @@ class BERTTrainer:
                  gradient_clipping_value=5.0, with_cuda: bool = True, cuda_devices=None):
 
         cuda_condition = torch.cuda.is_available() and with_cuda
-        import ipdb
-
-        ipdb.set_trace()
         self.device = torch.device("cuda" if cuda_condition else "cpu")
 
         self.bert = bert
@@ -59,17 +56,30 @@ class BERTTrainer:
 
         train_loss = 0.0
         for i, data in data_iter:
-            data = {key: value.to(self.device) for key, value in data.items()}
 
-            mask_prediction = self.model(data["bert_input"].float(),
-                                         data["timestamp"].long(),
-                                         data["bert_mask"].long())
+            inputs, targets = data
 
-            loss = self.criterion(mask_prediction, data["bert_target"].float())
-            mask = data["loss_mask"].unsqueeze(-1)
-            loss = (loss * mask.float()).sum() / mask.sum()
+            # inputs shape: torch.Size([512, 5, 2])
+            # targets shape: torch.Size([512, 2])
+            # split based on last dimension to get x and year_seq
+            x, year_seq = inputs.split(1, dim=-1)
+
+            # Resize year_seq to remove the last dimension
+            # X shouldn't be resized cause we have num_features dimension
+
+            # TODO - once I want to do "multi step prediction" I need to use the year from y
+            year_seq = year_seq.squeeze(-1)
+
+            # Call the model to get the prediction
+            outputs = self.model(x, year_seq)
+
+            # takes only the first dimension of the targets cause we don't need the year, also remove it from the outputs
+            y = targets[:, 0]
+            outputs = outputs[:, 0]
+            loss = self.criterion(y, outputs)
 
             self.optim.zero_grad()
+            loss = loss.mean()
             loss.backward()
             nn.utils.clip_grad_norm_(self.model.parameters(), self.gradient_clippling)
             self.optim.step()

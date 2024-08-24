@@ -18,13 +18,7 @@ def setup_seed(seed):
 def Config():
     parser = argparse.ArgumentParser()
     # Required parameters
-    parser.add_argument(
-        "--dataset_path",
-        default=None,
-        type=str,
-        required=True,
-        help="Path to the unlabeled dataset.",
-    )
+    parser.add_argument("--dataset_path", type=str, help="Path to the unlabeled dataset.", default="data/Landsat_NDVI_time_series_1984_to_2024.tif")
     parser.add_argument(
         "--pretrain_path",
         default='../checkpoints/pretrain',
@@ -108,7 +102,7 @@ def Config():
     )
     parser.add_argument(
         "--batch_size",
-        default=512,
+        default=64,
         type=int,
         help="",
     )
@@ -151,7 +145,7 @@ def main():
     train_loader, val_loader = loader.create_data_loaders()
 
     # NDVI Data so num_features = 1
-    bert = BERT(num_features=1, hidden=config.hidden_size, n_layers=config.layers, attn_heads=config.attn_heads, dropout=config.dropout)
+    bert = BERT(num_features=1, hidden=256, n_layers=config.layers, attn_heads=config.attn_heads, dropout=config.dropout)
 
     trainer = BERTTrainer(
         bert,

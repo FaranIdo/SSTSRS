@@ -9,8 +9,8 @@ import math
 # There is builtin
 
 class PositionalEncoding(nn.Module):
-
-    def __init__(self, d_model, max_len=366):
+    # TODO - fix cause I have years 1980 to 2024
+    def __init__(self, d_model, max_len=2025):
         super().__init__()
 
         # Compute the positional encodings once in log space.
@@ -27,6 +27,10 @@ class PositionalEncoding(nn.Module):
         self.register_buffer("pe", pe)
 
     def forward(self, time):
-        # stack instead of concatenate in the origianl pytorch implementation
-        output = torch.stack([torch.index_select(self.pe, 0, time[i, :]) for i in range(time.shape[0])], dim=0)
-        return output  # [batch_size, seq_length, embed_dim]
+
+        # convert time to int
+        time = time.int()
+        return self.pe[time, :]
+        # # stack instead of concatenate in the origianl pytorch implementation
+        # output = torch.stack([torch.index_select(self.pe, 0, time[i, :]) for i in range(time.shape[0])], dim=0)
+        # return output  # [batch_size, seq_length, embed_dim]
