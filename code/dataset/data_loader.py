@@ -1,4 +1,4 @@
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, random_split, Subset
 from .landsat_ts import LandsatSpectralDataset
 import logging
 
@@ -15,13 +15,20 @@ class LandsatDataLoader:
         logging.info(f"Creating data loaders with batch_size: {self.batch_size}, split_rate: {self.split_rate}, num_workers: {self.num_workers}")
 
         # Calculate the split
+
         train_size = int(self.split_rate * len(self.dataset))
         val_size = len(self.dataset) - train_size
-        logging.info(f"Dataset split: {train_size} training samples, {val_size} validation samples")
 
+        logging.info(f"Dataset split started with {len(self.dataset)} samples")
         # Split the dataset
         train_dataset, val_dataset = random_split(self.dataset, [train_size, val_size])
         logging.info(f"Dataset split completed")
+
+        # take only 1% of the training dataset and 1% of the validation dataset as actual training and validation dataset
+        train_dataset = Subset(train_dataset, range(int(0.01 * len(train_dataset))))
+        val_dataset = Subset(val_dataset, range(int(0.001 * len(val_dataset))))
+
+        logging.info(f"Dataset split: {train_size} training samples, {val_size} validation samples")
 
         # Create DataLoaders
         logging.info("Creating train loader...")
