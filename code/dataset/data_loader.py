@@ -25,8 +25,8 @@ class LandsatDataLoader:
         logging.info(f"Dataset split completed")
 
         # take only 1% of the training dataset and 1% of the validation dataset as actual training and validation dataset
-        train_dataset = Subset(train_dataset, range(int(0.01 * len(train_dataset))))
-        val_dataset = Subset(val_dataset, range(int(0.001 * len(val_dataset))))
+        # train_dataset = Subset(train_dataset, range(int(0.01 * len(train_dataset))))
+        # val_dataset = Subset(val_dataset, range(int(0.001 * len(val_dataset))))
 
         logging.info(f"Dataset split: {train_size} training samples, {val_size} validation samples")
 
