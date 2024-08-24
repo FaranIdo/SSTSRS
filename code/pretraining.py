@@ -53,12 +53,6 @@ def Config():
         "than this will be truncated, sequences shorter will be padded.",
     )
     parser.add_argument(
-        "--patch_size",
-        default=5,
-        type=int,
-        help="Size of the input patches.",
-    )
-    parser.add_argument(
         "--num_features",
         default=1,
         type=int,
@@ -102,7 +96,7 @@ def Config():
     )
     parser.add_argument(
         "--batch_size",
-        default=64,
+        default=1024,
         type=int,
         help="",
     )

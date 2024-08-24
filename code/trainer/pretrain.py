@@ -32,7 +32,7 @@ class BERTTrainer:
         self.warmup_epochs = warmup_epochs
         self.optim_schedule = lr_scheduler.ExponentialLR(self.optim, gamma=decay_gamma)
         self.gradient_clippling = gradient_clipping_value
-        self.criterion = nn.MSELoss(reduction='none')
+        self.criterion = nn.MSELoss(reduction="mean")
 
         if with_cuda and torch.cuda.is_available():
             if torch.cuda.device_count() > 1:
@@ -56,7 +56,6 @@ class BERTTrainer:
 
         train_loss = 0.0
         for i, data in data_iter:
-
             inputs, targets = data
 
             # inputs shape: torch.Size([512, 5, 2])
@@ -70,6 +69,11 @@ class BERTTrainer:
             # TODO - once I want to do "multi step prediction" I need to use the year from y
             year_seq = year_seq.squeeze(-1)
 
+            # move to device
+            x = x.to(self.device)
+            year_seq = year_seq.to(self.device)
+            targets = targets.to(self.device)
+
             # Call the model to get the prediction
             outputs = self.model(x, year_seq)
 
@@ -79,7 +83,6 @@ class BERTTrainer:
             loss = self.criterion(y, outputs)
 
             self.optim.zero_grad()
-            loss = loss.mean()
             loss.backward()
             nn.utils.clip_grad_norm_(self.model.parameters(), self.gradient_clippling)
             self.optim.step()
