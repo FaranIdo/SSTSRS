@@ -6,7 +6,8 @@ from dataset import LandsatDataLoader
 import logging
 from model import BERT
 from trainer import BERTTrainer
-
+import os
+from datetime import datetime
 
 def setup_seed(seed):
     torch.manual_seed(seed)
@@ -20,13 +21,6 @@ def Config():
     parser = argparse.ArgumentParser()
     # Required parameters
     parser.add_argument("--dataset_path", type=str, help="Path to the unlabeled dataset.", default="data/Landsat_NDVI_time_series_1984_to_2024.tif")
-    parser.add_argument(
-        "--checkpoints_path",
-        default="checkpoints/",
-        type=str,
-        required=False,
-        help="The output directory where the training checkpoints will be written.",
-    )
     parser.add_argument(
         "--with_cuda",
         default=True,
@@ -84,7 +78,7 @@ def Config():
     )
     parser.add_argument(
         "--epochs",
-        default=10,
+        default=100,
         type=int,
         help="",
     )
@@ -125,14 +119,20 @@ def Config():
 
 def main():
     setup_seed(0)
-    logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S")
     config = Config()
+
+    experiment_folder = f"runs/{datetime.now().strftime('%y-%m-%d_%H-%M')}_{config.name}"
+    os.makedirs(experiment_folder, exist_ok=True)
+    log_path = os.path.join(experiment_folder, "training.log")
+    logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S", handlers=[logging.FileHandler(log_path), logging.StreamHandler()])
+
+    logging.info("Starting training, experiment folder: %s", experiment_folder)
 
     logging.info("Loading datasets...")
     loader = LandsatDataLoader(config.dataset_path, config.batch_size, config.split_rate, config.num_workers, config.window_size)
-
     train_loader, val_loader = loader.create_data_loaders()
 
+    logging.info("Creating model...")
     # NDVI Data so num_features = 1
     bert = BERT(num_features=1, hidden=256, n_layers=config.layers, attn_heads=config.attn_heads, dropout=config.dropout)
 
@@ -147,15 +147,16 @@ def main():
         gradient_clipping_value=config.gradient_clipping,
         with_cuda=config.with_cuda,
         cuda_devices=config.cuda_devices,
-        experiment_name=config.name,
+        experiment_folder=experiment_folder,
     )
 
     mini_loss = np.Inf
+    logging.info("Starting training for %d epochs", config.epochs)
     for epoch in range(config.epochs):
         train_loss, valida_loss = trainer.train(epoch)
         if mini_loss > valida_loss:
             mini_loss = valida_loss
-            trainer.save(epoch, config.checkpoints_path)
+            trainer.save(epoch)
 
     trainer.plot_losses()
 

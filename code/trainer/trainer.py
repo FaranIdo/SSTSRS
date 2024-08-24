@@ -15,23 +15,27 @@ torch.manual_seed(0)
 
 
 class LossLogger:
-    def __init__(self, experiment_name):
-        self.writer = SummaryWriter(f"runs/{experiment_name}")
+
+    def __init__(self, experiment_folder):
+        self.writer = SummaryWriter(f"{experiment_folder}")
         self.train_losses = {}
         self.valid_losses = {}
+        self.train_mae = {}
+        self.valid_mae = {}
+        self.experiment_folder = experiment_folder
 
-    def log_train_loss(self, loss, epoch):
-        self.train_losses[epoch] = loss
-        self.writer.add_scalar("Loss/train", loss, epoch)
-
-    def log_valid_loss(self, loss, epoch):
-        self.valid_losses[epoch] = loss
-        self.writer.add_scalar("Loss/validation", loss, epoch)
+    def log_loss(self, train_loss, valid_loss, train_mae, valid_mae, epoch):
+        self.train_losses[epoch] = train_loss
+        self.valid_losses[epoch] = valid_loss
+        self.train_mae[epoch] = train_mae
+        self.valid_mae[epoch] = valid_mae
+        self.writer.add_scalars(main_tag="Loss", tag_scalar_dict={"train_loss": train_loss, "validation_loss": valid_loss}, global_step=epoch)
+        self.writer.add_scalars(main_tag="MAE", tag_scalar_dict={"train_mae": train_mae, "validation_mae": valid_mae}, global_step=epoch)
 
     def log_lr_decay(self, lr, epoch):
         self.writer.add_scalar("cosine_lr_decay", lr, global_step=epoch)
 
-    def plot_losses(self, experiment_name):
+    def plot_losses(self):
         plt.figure(figsize=(10, 5))
         epochs = list(self.train_losses.keys())
         train_losses = list(self.train_losses.values())
@@ -42,7 +46,19 @@ class LossLogger:
         plt.ylabel("Loss")
         plt.legend()
         plt.title("Training and Validation Loss")
-        plt.savefig(f"runs/{experiment_name}/loss_plot.png")
+        plt.savefig(f"{self.experiment_folder}/loss_plot.png")
+        plt.close()
+
+        plt.figure(figsize=(10, 5))
+        train_mae = list(self.train_mae.values())
+        valid_mae = list(self.valid_mae.values())
+        plt.plot(epochs, train_mae, label="train")
+        plt.plot(epochs, valid_mae, label="validation")
+        plt.xlabel("Epoch")
+        plt.ylabel("MAE")
+        plt.legend()
+        plt.title("Training and Validation MAE")
+        plt.savefig(f"{self.experiment_folder}/mae_plot.png")
         plt.close()
 
 
@@ -60,7 +76,7 @@ class BERTTrainer:
         gradient_clipping_value=5.0,
         with_cuda: bool = True,
         cuda_devices=None,
-        experiment_name: str = "experiment",
+        experiment_folder: str = "runs/experiment",
     ):
 
         cuda_condition = torch.cuda.is_available() and with_cuda
@@ -77,26 +93,29 @@ class BERTTrainer:
         self.optim_schedule = lr_scheduler.ExponentialLR(self.optim, gamma=decay_gamma)
         self.gradient_clippling = gradient_clipping_value
         self.criterion = nn.MSELoss(reduction="mean")
-        self.experiment_name = f"{datetime.now().strftime('%b%d_%H-%M-%S')}_{experiment_name}"
+        self.mae_criterion = nn.L1Loss(reduction="mean")
+        self.experiment_folder = experiment_folder
 
         if with_cuda and torch.cuda.is_available():
             if torch.cuda.device_count() > 1:
-                print("Using %d GPUs for model training" % torch.cuda.device_count())
+                logging.info("Using %d GPUs for model training" % torch.cuda.device_count())
                 self.model = nn.DataParallel(self.model, device_ids=cuda_devices)
             self.model = self.model.cuda()
             self.criterion = self.criterion.cuda()
+            self.mae_criterion = self.mae_criterion.cuda()
             torch.backends.cudnn.benchmark = True
 
-        self.loss_logger = LossLogger(self.experiment_name)
+        self.loss_logger = LossLogger(self.experiment_folder)
 
     def train(self, epoch):
-        logging.info("Training model on device: %s", self.device)
+        logging.info("Training model on device: %s, epoch: %d", self.device, epoch)
 
         self.model.train()
 
         data_iter = tqdm(enumerate(self.train_loader), desc="EP_%s:%d" % ("train", epoch), total=len(self.train_loader), bar_format="{l_bar}{r_bar}")
 
         train_loss = 0.0
+        train_mae = 0.0
         for i, data in data_iter:
             inputs, targets = data
 
@@ -123,6 +142,7 @@ class BERTTrainer:
             y = targets[:, 0]
             outputs = outputs[:, 0]
             loss = self.criterion(y, outputs)
+            mae = self.mae_criterion(y, outputs)
 
             self.optim.zero_grad()
             loss.backward()
@@ -130,22 +150,23 @@ class BERTTrainer:
             self.optim.step()
 
             train_loss += loss.item()
-            post_fix = {"epoch": epoch, "iter": i, "avg_loss": train_loss / (i + 1), "current_batch_loss": loss.item()}
+            train_mae += mae.item()
+            post_fix = {"epoch": epoch, "iter": i, "avg_loss": train_loss / (i + 1), "current_batch_loss": loss.item(), "avg_mae": train_mae / (i + 1), "current_batch_mae": mae.item()}
 
             if i % 10 == 0:
-                data_iter.write(str(post_fix))
+                logging.info(str(post_fix))
+                # data_iter.write(str(post_fix))
 
         train_loss = train_loss / len(data_iter)
-        self.loss_logger.log_train_loss(train_loss, epoch)
-
-        valid_loss = self.validate()
-        self.loss_logger.log_valid_loss(valid_loss, epoch)
+        train_mae = train_mae / len(data_iter)
+        valid_loss, valid_mae = self.validate()
+        self.loss_logger.log_loss(train_loss, valid_loss, train_mae, valid_mae, epoch)
 
         if epoch >= self.warmup_epochs:
             self.optim_schedule.step()
         self.loss_logger.log_lr_decay(self.optim_schedule.get_lr()[0], epoch)
 
-        print("EP%d, train_loss=%.5f, validate_loss=%.5f" % (epoch, train_loss, valid_loss))
+        logging.info("EP%d, train_loss=%.5f, validate_loss=%.5f, train_mae=%.5f, validate_mae=%.5f" % (epoch, train_loss, valid_loss, train_mae, valid_mae))
         return train_loss, valid_loss
 
     def validate(self):
@@ -153,6 +174,7 @@ class BERTTrainer:
         self.model.eval()
 
         valid_loss = 0.0
+        valid_mae = 0.0
         counter = 0
         total_batches = len(self.valid_loader)
         # Initialize tqdm for progress tracking with a better description
@@ -172,23 +194,29 @@ class BERTTrainer:
                 y = targets[:, 0]
                 outputs = outputs[:, 0]
                 loss = self.criterion(y, outputs)
+                mae = self.mae_criterion(y, outputs)
 
             valid_loss += loss.item()
+            valid_mae += mae.item()
             counter += 1
 
             if i % 10 == 0:
-                post_fix = {"validation_iter": i, "validation_avg_loss": valid_loss / (i + 1), "validation_current_batch_loss": loss.item()}
-                data_iter.write(str(post_fix))
+                post_fix = {
+                    "validation_iter": i,
+                    "validation_avg_loss": valid_loss / (i + 1),
+                    "validation_current_batch_loss": loss.item(),
+                    "validation_avg_mae": valid_mae / (i + 1),
+                    "validation_current_batch_mae": mae.item(),
+                }
+                logging.info(str(post_fix))
+                # data_iter.write(str(post_fix))
 
         valid_loss /= counter
-        return valid_loss
+        valid_mae /= counter
+        return valid_loss, valid_mae
 
-    def save(self, epoch, path):
-        if not os.path.exists(path):
-            os.makedirs(path)
-            logging.info(f"Created directory: {path}")
-
-        output_path = os.path.join(path, f"checkpoint_{self.experiment_name}.tar")
+    def save(self, epoch):
+        output_path = os.path.join(self.experiment_folder, f"checkpoint_{self.experiment_folder}.tar")
         logging.info(f"Saving model checkpoint to: {output_path}")
 
         # Save model and optimizer state
@@ -204,7 +232,7 @@ class BERTTrainer:
         except Exception as e:
             logging.error(f"Error saving model checkpoint: {e}")
 
-        bert_path = os.path.join(path, f"checkpoint_{self.experiment_name}.bert.tar")
+        bert_path = os.path.join(self.experiment_folder, f"checkpoint_{self.experiment_folder}.bert.tar")
         logging.info(f"Saving BERT state to: {bert_path}")
 
         try:
@@ -214,11 +242,10 @@ class BERTTrainer:
         except Exception as e:
             logging.error(f"Error saving BERT state: {e}")
 
-        print("EP:%d Model Saved on:" % epoch, output_path)
         return output_path
 
     def load(self, path):
-        input_path = os.path.join(path, f"checkpoint_{self.experiment_name}.tar")
+        input_path = path
 
         try:
             checkpoint = torch.load(input_path, map_location=torch.device("cpu"))
@@ -226,10 +253,10 @@ class BERTTrainer:
             self.optim.load_state_dict(checkpoint["optimizer_state_dict"])
             self.model.train()
 
-            print("Model loaded from:" % input_path)
+            logging.info("Model loaded from:" % input_path)
             return input_path
         except IOError:
-            print("Error: parameter file does not exist!")
+            logging.info("Error: parameter file does not exist!")
 
     def plot_losses(self):
-        self.loss_logger.plot_losses(self.experiment_name)
+        self.loss_logger.plot_losses()
