@@ -21,11 +21,11 @@ def Config():
     # Required parameters
     parser.add_argument("--dataset_path", type=str, help="Path to the unlabeled dataset.", default="data/Landsat_NDVI_time_series_1984_to_2024.tif")
     parser.add_argument(
-        "--pretrain_path",
-        default="../checkpoints/pretrain",
+        "--checkpoints_path",
+        default="checkpoints/",
         type=str,
         required=False,
-        help="The output directory where the pre-training checkpoints will be written.",
+        help="The output directory where the training checkpoints will be written.",
     )
     parser.add_argument(
         "--with_cuda",
@@ -57,12 +57,6 @@ def Config():
         default=1,
         type=int,
         help="The spectral dimensionality of satellite observations.",
-    )
-    parser.add_argument(
-        "--mask_rate",
-        default=0.3,
-        type=float,
-        help="The fraction of timesteps in a time series that will be masked out.",
     )
     parser.add_argument(
         "--hidden_size",
@@ -161,7 +155,7 @@ def main():
         train_loss, valida_loss = trainer.train(epoch)
         if mini_loss > valida_loss:
             mini_loss = valida_loss
-            trainer.save(epoch, config.pretrain_path)
+            trainer.save(epoch, config.checkpoints_path)
 
 
 if __name__ == "__main__":

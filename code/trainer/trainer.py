@@ -44,18 +44,17 @@ class BERTTrainer:
         self.optim_schedule = lr_scheduler.ExponentialLR(self.optim, gamma=decay_gamma)
         self.gradient_clippling = gradient_clipping_value
         self.criterion = nn.MSELoss(reduction="mean")
+        self.experiment_name = f"{datetime.now().strftime('%b%d_%H-%M-%S')}_{experiment_name}"
 
         if with_cuda and torch.cuda.is_available():
             if torch.cuda.device_count() > 1:
-                print("Using %d GPUs for model pre-training" % torch.cuda.device_count())
+                print("Using %d GPUs for model training" % torch.cuda.device_count())
                 self.model = nn.DataParallel(self.model, device_ids=cuda_devices)
             self.model = self.model.cuda()
             self.criterion = self.criterion.cuda()
             torch.backends.cudnn.benchmark = True
 
-        # name should include the date and time in TensorBoard format + input experiment_name - Aug24_15-50-21
-        name = f"{datetime.now().strftime('%b%d_%H-%M-%S')}_{experiment_name}"
-        self.writer = SummaryWriter(name)
+        self.writer = SummaryWriter(f"runs/{self.experiment_name}")
 
     def train(self, epoch):
         logging.info("Training model on device: %s", self.device)
@@ -104,10 +103,10 @@ class BERTTrainer:
                 data_iter.write(str(post_fix))
 
         train_loss = train_loss / len(data_iter)
-        self.writer.add_scalar("train_loss", train_loss, global_step=epoch)
+        self.writer.add_scalar("Loss/train", train_loss, epoch)
 
         valid_loss = self.validate()
-        self.writer.add_scalar("validation_loss", valid_loss, global_step=epoch)
+        self.writer.add_scalar("Loss/validation", valid_loss, epoch)
 
         if epoch >= self.warmup_epochs:
             self.optim_schedule.step()
@@ -156,7 +155,7 @@ class BERTTrainer:
             os.makedirs(path)
             logging.info(f"Created directory: {path}")
 
-        output_path = os.path.join(path, "checkpoint.tar")
+        output_path = os.path.join(path, f"checkpoint_{self.experiment_name}.tar")
         logging.info(f"Saving model checkpoint to: {output_path}")
 
         # Save model and optimizer state
@@ -172,7 +171,7 @@ class BERTTrainer:
         except Exception as e:
             logging.error(f"Error saving model checkpoint: {e}")
 
-        bert_path = os.path.join(path, "checkpoint.bert.tar")
+        bert_path = os.path.join(path, f"checkpoint_{self.experiment_name}.bert.tar")
         logging.info(f"Saving BERT state to: {bert_path}")
 
         try:
@@ -186,7 +185,7 @@ class BERTTrainer:
         return output_path
 
     def load(self, path):
-        input_path = os.path.join(path, "checkpoint.tar")
+        input_path = os.path.join(path, f"checkpoint_{self.experiment_name}.tar")
 
         try:
             checkpoint = torch.load(input_path, map_location=torch.device("cpu"))
