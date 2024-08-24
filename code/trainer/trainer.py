@@ -70,6 +70,12 @@ class BERTTrainer:
         num_features: int,
         train_loader: DataLoader,
         valid_loader: DataLoader,
+        # lr starts at 0.001, stay constant for 10 epochs, then decay exponentially with a decay rate of 0.99
+        # For example, epoch 11: lr = 0.001 * 0.99 = 0.00099
+        # epoch 12: lr = 0.00099 * 0.99 = 0.0009801
+        # epoch 13: lr = 0.0009801 * 0.99 = 0.000970299
+        # ..
+        # epoch 100: lr = 0.001 * 0.99^90 = 0.00004584850071858836
         lr: float = 1e-3,
         warmup_epochs: int = 10,
         decay_gamma: float = 0.99,

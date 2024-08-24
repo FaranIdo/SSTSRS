@@ -72,7 +72,7 @@ def Config():
     )
     parser.add_argument(
         "--learning_rate",
-        default=1e-3,
+        default=1e-3,  # = 0.001
         type=float,
         help="",
     )
