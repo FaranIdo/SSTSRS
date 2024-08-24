@@ -222,7 +222,7 @@ class BERTTrainer:
         return valid_loss, valid_mae
 
     def save(self, epoch):
-        output_path = os.path.join(self.experiment_folder, f"checkpoint_{self.experiment_folder}.tar")
+        output_path = os.path.join(self.experiment_folder, f"checkpoint.tar")
         logging.info(f"Saving model checkpoint to: {output_path}")
 
         # Save model and optimizer state
@@ -238,7 +238,7 @@ class BERTTrainer:
         except Exception as e:
             logging.error(f"Error saving model checkpoint: {e}")
 
-        bert_path = os.path.join(self.experiment_folder, f"checkpoint_{self.experiment_folder}.bert.tar")
+        bert_path = os.path.join(self.experiment_folder, f"checkpoint.bert.tar")
         logging.info(f"Saving BERT state to: {bert_path}")
 
         try:
