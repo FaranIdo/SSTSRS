@@ -9,8 +9,41 @@ from torch.utils.tensorboard import SummaryWriter
 from model import BERT, BERTPrediction
 import logging
 from datetime import datetime
+import matplotlib.pyplot as plt
 
 torch.manual_seed(0)
+
+
+class LossLogger:
+    def __init__(self, experiment_name):
+        self.writer = SummaryWriter(f"runs/{experiment_name}")
+        self.train_losses = {}
+        self.valid_losses = {}
+
+    def log_train_loss(self, loss, epoch):
+        self.train_losses[epoch] = loss
+        self.writer.add_scalar("Loss/train", loss, epoch)
+
+    def log_valid_loss(self, loss, epoch):
+        self.valid_losses[epoch] = loss
+        self.writer.add_scalar("Loss/validation", loss, epoch)
+
+    def log_lr_decay(self, lr, epoch):
+        self.writer.add_scalar("cosine_lr_decay", lr, global_step=epoch)
+
+    def plot_losses(self, experiment_name):
+        plt.figure(figsize=(10, 5))
+        epochs = list(self.train_losses.keys())
+        train_losses = list(self.train_losses.values())
+        valid_losses = list(self.valid_losses.values())
+        plt.plot(epochs, train_losses, label="train")
+        plt.plot(epochs, valid_losses, label="validation")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.legend()
+        plt.title("Training and Validation Loss")
+        plt.savefig(f"runs/{experiment_name}/loss_plot.png")
+        plt.close()
 
 
 class BERTTrainer:
@@ -54,7 +87,7 @@ class BERTTrainer:
             self.criterion = self.criterion.cuda()
             torch.backends.cudnn.benchmark = True
 
-        self.writer = SummaryWriter(f"runs/{self.experiment_name}")
+        self.loss_logger = LossLogger(self.experiment_name)
 
     def train(self, epoch):
         logging.info("Training model on device: %s", self.device)
@@ -103,14 +136,14 @@ class BERTTrainer:
                 data_iter.write(str(post_fix))
 
         train_loss = train_loss / len(data_iter)
-        self.writer.add_scalar("Loss/train", train_loss, epoch)
+        self.loss_logger.log_train_loss(train_loss, epoch)
 
         valid_loss = self.validate()
-        self.writer.add_scalar("Loss/validation", valid_loss, epoch)
+        self.loss_logger.log_valid_loss(valid_loss, epoch)
 
         if epoch >= self.warmup_epochs:
             self.optim_schedule.step()
-        self.writer.add_scalar("cosine_lr_decay", self.optim_schedule.get_lr()[0], global_step=epoch)
+        self.loss_logger.log_lr_decay(self.optim_schedule.get_lr()[0], epoch)
 
         print("EP%d, train_loss=%.5f, validate_loss=%.5f" % (epoch, train_loss, valid_loss))
         return train_loss, valid_loss
@@ -197,3 +230,6 @@ class BERTTrainer:
             return input_path
         except IOError:
             print("Error: parameter file does not exist!")
+
+    def plot_losses(self):
+        self.loss_logger.plot_losses(self.experiment_name)

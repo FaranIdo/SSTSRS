@@ -157,6 +157,8 @@ def main():
             mini_loss = valida_loss
             trainer.save(epoch, config.checkpoints_path)
 
+    trainer.plot_losses()
+
 
 if __name__ == "__main__":
     main()
