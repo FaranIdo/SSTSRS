@@ -1,17 +1,15 @@
-from torch.utils.data import DataLoader, random_split, Subset
-from .landsat_ts import LandsatSpectralDataset
+from torch.utils.data import DataLoader, random_split
 import logging
 
 
 class LandsatDataLoader:
 
-    def __init__(self, dataset_path: str, batch_size: int, train_rate: float = 0.1, val_rate: float = 0.05, num_workers: int = 4, window_size: int = 5):
-        self.dataset_path = dataset_path
+    def __init__(self, dataset, batch_size: int, train_rate: float = 0.1, val_rate: float = 0.05, num_workers: int = 4):
         self.batch_size = batch_size
         self.train_rate = train_rate
         self.val_rate = val_rate
         self.num_workers = num_workers
-        self.dataset = LandsatSpectralDataset(self.dataset_path, window_size)
+        self.dataset = dataset
 
     def create_data_loaders(self):
         logging.info(f"Creating data loaders with batch_size: {self.batch_size}, train_rate: {self.train_rate}, val_rate: {self.val_rate}, num_workers: {self.num_workers}")

@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import random
 import argparse
-from dataset import LandsatDataLoader
+from dataset import LandsatDataLoader, LandsatSpectralDataset, LandsatSeqDataset
 import logging
 from model import BERT
 from trainer import BERTTrainer
@@ -39,8 +39,8 @@ def Config():
         type=int,
         help="Number of loader worker processes.",
     )
-    parser.add_argument("--train_rate", default=0.01, type=float, help="Proportion of samples used for training")
-    parser.add_argument("--val_rate", default=0.005, type=float, help="Proportion of samples used for validation")
+    parser.add_argument("--train_rate", default=0.1, type=float, help="Proportion of samples used for training")
+    parser.add_argument("--val_rate", default=0.05, type=float, help="Proportion of samples used for validation")
     parser.add_argument(
         "--max_length",
         default=75,
@@ -130,7 +130,8 @@ def main():
     logging.info("Starting training, experiment folder: %s", experiment_folder)
 
     logging.info("Loading datasets...")
-    loader = LandsatDataLoader(config.dataset_path, config.batch_size, config.train_rate, config.val_rate, config.num_workers, config.window_size)
+    dataset = LandsatSeqDataset(config.dataset_path, config.window_size)
+    loader = LandsatDataLoader(dataset, config.batch_size, config.train_rate, config.val_rate, config.num_workers)
     train_loader, val_loader = loader.create_data_loaders()
 
     logging.info("Creating model...")

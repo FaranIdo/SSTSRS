@@ -22,6 +22,8 @@ class LandsatSpectralDataset(Dataset):
             self.process_and_save_data(dataset_path)
             logging.info("New data processed and saved successfully.")
 
+        logging.info(f"Landsat spectral dataset initialized with window size: {self.window_size}")
+
     def process_and_save_data(self, dataset_path: str) -> None:
         with rasterio.open(dataset_path) as src:
             ndvi_data: np.ndarray = src.read()
