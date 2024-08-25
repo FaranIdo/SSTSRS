@@ -4,29 +4,27 @@ import logging
 
 
 class LandsatDataLoader:
-    def __init__(self, dataset_path: str, batch_size: int, split_rate: float, num_workers: int = 4, window_size: int = 5):
+
+    def __init__(self, dataset_path: str, batch_size: int, train_rate: float = 0.1, val_rate: float = 0.05, num_workers: int = 4, window_size: int = 5):
         self.dataset_path = dataset_path
         self.batch_size = batch_size
-        self.split_rate = split_rate
+        self.train_rate = train_rate
+        self.val_rate = val_rate
         self.num_workers = num_workers
         self.dataset = LandsatSpectralDataset(self.dataset_path, window_size)
 
     def create_data_loaders(self):
-        logging.info(f"Creating data loaders with batch_size: {self.batch_size}, split_rate: {self.split_rate}, num_workers: {self.num_workers}")
+        logging.info(f"Creating data loaders with batch_size: {self.batch_size}, train_rate: {self.train_rate}, val_rate: {self.val_rate}, num_workers: {self.num_workers}")
 
         # Calculate the split
-
-        train_size = int(self.split_rate * len(self.dataset))
-        val_size = len(self.dataset) - train_size
+        train_size = int(self.train_rate * len(self.dataset))
+        val_size = int(self.val_rate * len(self.dataset))
+        test_size = len(self.dataset) - train_size - val_size
 
         logging.info(f"Dataset split started with {len(self.dataset)} samples")
-        # Split the dataset
-        train_dataset, val_dataset = random_split(self.dataset, [train_size, val_size])
+        # Split the dataset - don't use test dataset
+        train_dataset, val_dataset, _ = random_split(self.dataset, [train_size, val_size, test_size])
         logging.info(f"Dataset split completed")
-
-        # take only 1% of the training dataset and 1% of the validation dataset as actual training and validation dataset
-        # train_dataset = Subset(train_dataset, range(int(0.01 * len(train_dataset))))
-        # val_dataset = Subset(val_dataset, range(int(0.001 * len(val_dataset))))
 
         logging.info(f"Dataset split: {train_size} training samples, {val_size} validation samples")
 

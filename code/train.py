@@ -39,7 +39,8 @@ def Config():
         type=int,
         help="Number of loader worker processes.",
     )
-    parser.add_argument("--split_rate", default=0.1, type=float, help="Proportion of samples used for validation")
+    parser.add_argument("--train_rate", default=0.1, type=float, help="Proportion of samples used for training")
+    parser.add_argument("--val_rate", default=0.05, type=float, help="Proportion of samples used for validation")
     parser.add_argument(
         "--max_length",
         default=75,
@@ -129,7 +130,7 @@ def main():
     logging.info("Starting training, experiment folder: %s", experiment_folder)
 
     logging.info("Loading datasets...")
-    loader = LandsatDataLoader(config.dataset_path, config.batch_size, config.split_rate, config.num_workers, config.window_size)
+    loader = LandsatDataLoader(config.dataset_path, config.batch_size, config.train_rate, config.val_rate, config.num_workers, config.window_size)
     train_loader, val_loader = loader.create_data_loaders()
 
     logging.info("Creating model...")
