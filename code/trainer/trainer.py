@@ -98,7 +98,7 @@ class BERTTrainer:
         self.warmup_epochs = warmup_epochs
         self.optim_schedule = lr_scheduler.ExponentialLR(self.optim, gamma=decay_gamma)
         self.gradient_clippling = gradient_clipping_value
-        self.criterion = nn.MSELoss(reduction="mean")
+        self.criterion = nn.L1Loss(reduction="mean")
         self.mae_criterion = nn.L1Loss(reduction="mean")
         self.experiment_folder = experiment_folder
 

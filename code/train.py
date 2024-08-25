@@ -39,8 +39,8 @@ def Config():
         type=int,
         help="Number of loader worker processes.",
     )
-    parser.add_argument("--train_rate", default=0.1, type=float, help="Proportion of samples used for training")
-    parser.add_argument("--val_rate", default=0.05, type=float, help="Proportion of samples used for validation")
+    parser.add_argument("--train_rate", default=0.01, type=float, help="Proportion of samples used for training")
+    parser.add_argument("--val_rate", default=0.005, type=float, help="Proportion of samples used for validation")
     parser.add_argument(
         "--max_length",
         default=75,

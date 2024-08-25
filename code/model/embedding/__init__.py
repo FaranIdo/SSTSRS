@@ -1,1 +1,0 @@
-from .spectral_bert import SpectralBERTEmbedding
