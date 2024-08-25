@@ -1,0 +1,90 @@
+import torch
+import torch.nn as nn
+import math
+from embedding.temporal import ContinuousTemporalEncoding
+from embedding.position import SequencePositionalEncoding
+
+
+class TemporalPositionalNDVITransformer(nn.Module):
+    def __init__(self, embedding_dim: int, attn_heads: int, num_encoder_layers: int, start_year: int, end_year: int, max_seq_length: int = 50, num_features: int = 1, dropout_rate: float = 0.1):
+        """
+        Initializes the TemporalPositionalNDVITransformer model.
+
+        Args:
+            embedding_dim (int): The dimension of the model.
+            attn_heads (int): The number of attention heads.
+            num_encoder_layers (int): The number of encoder layers.
+            start_year (int): The starting year for temporal encoding.
+            end_year (int): The ending year for temporal encoding.
+            max_seq_length (int, optional): The maximum sequence length for positional encoding. Defaults to 50.
+            num_features (int, optional): The number of input features. Defaults to 1.
+            dropout_rate (float, optional): The dropout rate. Defaults to 0.1.
+        """
+        super(TemporalPositionalNDVITransformer, self).__init__()
+
+        dim_feedforward = embedding_dim * 4
+
+        self.embedding_dim = embedding_dim
+
+        # Embeddings
+        self.ndvi_embed = nn.Linear(num_features, embedding_dim)
+
+        # Temporal encoding
+        self.temporal_encoding = ContinuousTemporalEncoding(embedding_dim, start_year, end_year)
+
+        # Positional encoding - Captture the order of values in the input sequence
+        self.positional_encoding = SequencePositionalEncoding(embedding_dim, max_seq_length)
+
+        # Dropout
+        self.dropout = nn.Dropout(dropout_rate)
+
+        # Transformer Encoder
+        encoder_layers = nn.TransformerEncoderLayer(embedding_dim, attn_heads, dim_feedforward, dropout=dropout_rate)
+        encoder_norm = nn.LayerNorm(embedding_dim)
+
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layers, num_encoder_layers, encoder_norm)
+
+        # Pooling layer
+        self.pooling = nn.MaxPool1d(max_seq_length)
+
+        # Output layer
+        self.output_layer = nn.Linear(embedding_dim, 1)
+
+    def forward(self, ndvi: torch.Tensor, years: torch.Tensor, seasons: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of the TemporalPositionalNDVITransformer model.
+
+        Args:
+            ndvi (torch.Tensor): The NDVI values with shape [batch_size, seq_len, num_features].
+            years (torch.Tensor): The years with shape [batch_size, seq_len].
+            seasons (torch.Tensor): The seasons with shape [batch_size, seq_len].
+
+        Returns:
+            torch.Tensor: The output of the model.
+        """
+        batch_size, seq_len, _ = ndvi.shape
+
+        # Embed NDVI values
+        ndvi_embedding = self.ndvi_embed(ndvi)
+
+        # Create temporal encoding
+        temporal_encoding = self.temporal_encoding(years, seasons)
+
+        # Create positional encoding
+        positions = torch.arange(seq_len, device=ndvi.device).unsqueeze(0).expand(batch_size, seq_len)
+        positional_encoding = self.positional_encoding(positions)
+
+        # Combine NDVI embedding with temporal and positional encodings
+        x = ndvi_embedding + temporal_encoding + positional_encoding
+
+        # Apply dropout
+        x = self.dropout(x)
+
+        # Pass through transformer encoder
+        output = self.transformer_encoder(x.transpose(0, 1))
+
+        # Apply pooling
+        output = self.pooling(output.permute(1, 2, 0)).squeeze()
+
+        # Pass through output layer
+        return self.output_layer(output)
