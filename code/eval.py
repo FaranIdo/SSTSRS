@@ -1,13 +1,14 @@
 import torch
-from model import LinearNDVIModel
+from model import LinearNDVIModel, TemporalPositionalNDVITransformer, FullyConnectedNDVIModel
 from dataset.landsat_seq import LandsatSeqDataset
 from dataset.data_loader import LandsatDataLoader
 from trainer.temporal_trainer import TemporalTrainer
-from model.fc_model import FullyConnectedNDVIModel
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import logging
 import os
 import json
+from tqdm import tqdm
+import numpy as np
 
 
 def setup_logging():
@@ -21,7 +22,7 @@ def define_hyperparameters():
 def create_dataloader(dataset_path, window_size, batch_size, num_workers):
     dataset = LandsatSeqDataset(dataset_path=dataset_path, window_size=window_size)
     # use LandsatDataLoader
-    loader = LandsatDataLoader(dataset, batch_size, train_rate=0.1, val_rate=0.05, num_workers=num_workers)
+    loader = LandsatDataLoader(dataset, batch_size, train_rate=0.1, val_rate=0.5, num_workers=num_workers)
     train_loader, val_loader = loader.create_data_loaders()
     return train_loader, val_loader
 
@@ -49,7 +50,7 @@ def evaluate_model(model, val_loader, device):
     y_pred = []
 
     with torch.no_grad():
-        for inputs, targets in val_loader:
+        for inputs, targets in tqdm(val_loader, desc=f"Evaluating {model.__class__.__name__}"):
             x, year_seq = inputs.split(1, dim=-1)
             year_seq = year_seq.squeeze(-1)
             x = x.to(device)
@@ -182,8 +183,13 @@ def main(models):
 
 
 if __name__ == "__main__":
+    # set const seed
+    torch.manual_seed(1)
+    np.random.seed(1)
+
     # Create a list of models to evaluate
     models = [
+        (TemporalPositionalNDVITransformer(embedding_dim=256, num_encoder_layers=3, sequence_length=5, start_year=1984, end_year=2024, attn_heads=8, dropout=0.0), "24-08-26_00-06_temporal_200_d2"),
         (LinearNDVIModel(num_features=1, sequence_length=5), "linear_5"),
         (LinearNDVIModel(num_features=1, sequence_length=10), "linear_10"),
         (LinearNDVIModel(num_features=1, sequence_length=20), "linear_20"),
