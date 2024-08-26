@@ -167,3 +167,4 @@ code/runs/*
 runs/*
 checkpoints/*
 *.png
+.vscode/*
