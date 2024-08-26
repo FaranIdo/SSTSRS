@@ -1,5 +1,5 @@
 import torch
-from model import LinearNDVIModel, TemporalPositionalNDVITransformer, FullyConnectedNDVIModel
+from model import LinearNDVIModel, TemporalPositionalNDVITransformer, FullyConnectedNDVIModel, TSLinearNDVIModel, TSFullyConnectedNDVIModel
 from dataset.landsat_seq import LandsatSeqDataset
 from dataset.data_loader import LandsatDataLoader
 from trainer.temporal_trainer import TemporalTrainer
@@ -16,7 +16,7 @@ def setup_logging():
 
 
 def define_hyperparameters():
-    return {"dataset_path": "data/Landsat_NDVI_time_series_1984_to_2024.tif", "batch_size": 1024, "num_workers": 4, "num_epochs": 100, "lr": 1e-3}
+    return {"dataset_path": "data/Landsat_NDVI_time_series_1984_to_2024.tif", "batch_size": 1024, "num_workers": 4, "num_epochs": 5, "lr": 1e-3}
 
 
 def create_dataloader(dataset_path, window_size, batch_size, num_workers):
@@ -55,14 +55,14 @@ def evaluate_model(model, val_loader, device):
             year_seq = year_seq.squeeze(-1)
             x = x.to(device)
             year_seq = year_seq.to(device)
-            targets = targets.to(device)
 
-            # we need to convert create season encoding from year_seq by
-            # if year is full number (1980, 1981, 1982) - season is 0
-            # if year is full number + 0.5 (1980.5, 1981.5, 1982.5) - season is 1
+            # Extract NDVI, year, and season from targets
+            # y_ndvi = targets[:, 0].to(device)
+            # y_year = targets[:, 1].to(device)
+            # y_season = torch.where(y_year % 1 == 0, 0, 1)
+            # y_year = y_year.int()
             seasons = torch.where(year_seq % 1 == 0, 0, 1)
 
-            # convert year_seq to int
             year_seq_int = year_seq.int()
 
             with torch.no_grad():
@@ -189,16 +189,18 @@ if __name__ == "__main__":
 
     # Create a list of models to evaluate
     models = [
-        (TemporalPositionalNDVITransformer(embedding_dim=256, num_encoder_layers=3, sequence_length=5, start_year=1984, end_year=2024, attn_heads=8, dropout=0.0), "24-08-26_00-06_temporal_200_d2"),
+        # (TSLinearNDVIModel(sequence_length=5, ndvi_hidden_size=64, year_embed_size=16, season_embed_size=16, num_years=41, num_seasons=2, combined_hidden_size=64), "ts_linear_5"),
+        # (TSFullyConnectedNDVIModel(sequence_length=5, num_years=41, num_seasons=2, year_embed_size=16, season_embed_size=16, hidden_sizes=[64, 64]), "ts_fc_5"),
+        # (TemporalPositionalNDVITransformer(embedding_dim=256, num_encoder_layers=3, sequence_length=5, start_year=1984, end_year=2024, attn_heads=8, dropout=0.0), "24-08-26_00-06_temporal_200_d2"),
         (LinearNDVIModel(num_features=1, sequence_length=5), "linear_5"),
-        (LinearNDVIModel(num_features=1, sequence_length=10), "linear_10"),
-        (LinearNDVIModel(num_features=1, sequence_length=20), "linear_20"),
-        (FullyConnectedNDVIModel(num_features=1, sequence_length=5, hidden_size=64, num_layers=2), "fc_seq5_layers2"),
-        (FullyConnectedNDVIModel(num_features=1, sequence_length=10, hidden_size=64, num_layers=2), "fc_seq10_layers2"),
-        (FullyConnectedNDVIModel(num_features=1, sequence_length=20, hidden_size=64, num_layers=2), "fc_seq20_layers2"),
-        (FullyConnectedNDVIModel(num_features=1, sequence_length=5, hidden_size=64, num_layers=4), "fc_seq5_layers4"),
-        (FullyConnectedNDVIModel(num_features=1, sequence_length=10, hidden_size=64, num_layers=4), "fc_seq10_layers4"),
-        (FullyConnectedNDVIModel(num_features=1, sequence_length=20, hidden_size=64, num_layers=4), "fc_seq20_layers4"),
+        # (LinearNDVIModel(num_features=1, sequence_length=10), "linear_10"),
+        # (LinearNDVIModel(num_features=1, sequence_length=20), "linear_20"),
+        # (FullyConnectedNDVIModel(num_features=1, sequence_length=5, hidden_size=64, num_layers=2), "fc_seq5_layers2"),
+        # (FullyConnectedNDVIModel(num_features=1, sequence_length=10, hidden_size=64, num_layers=2), "fc_seq10_layers2"),
+        # (FullyConnectedNDVIModel(num_features=1, sequence_length=20, hidden_size=64, num_layers=2), "fc_seq20_layers2"),
+        # (FullyConnectedNDVIModel(num_features=1, sequence_length=5, hidden_size=64, num_layers=4), "fc_seq5_layers4"),
+        # (FullyConnectedNDVIModel(num_features=1, sequence_length=10, hidden_size=64, num_layers=4), "fc_seq10_layers4"),
+        # (FullyConnectedNDVIModel(num_features=1, sequence_length=20, hidden_size=64, num_layers=4), "fc_seq20_layers4"),
         # Add more models here
     ]
 

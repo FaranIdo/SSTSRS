@@ -149,7 +149,11 @@ class TemporalTrainer:
             # convert year_seq to int
             year_seq_int = year_seq.int()
 
+            # target_year = targets[:, 1].int()
+            # target_season = torch.where(target_year % 1 == 0, 0, 1)
+
             # Call the model to get the prediction
+            # outputs = self.model(x, year_seq_int, seasons, target_year, target_season)
             outputs = self.model(x, year_seq_int, seasons)
 
             # takes only the first dimension of the targets cause we don't need the year, also remove it from the outputs

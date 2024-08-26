@@ -11,11 +11,11 @@ SEED = 42
 random.seed(SEED)
 
 
-class LandsatSeqDataset(Dataset):
+class LandsatFutureDataset(Dataset):
 
-    def __init__(self, dataset_path: str, window_size: int, max_distance: int = 0):
+    def __init__(self, dataset_path: str, window_size: int, max_distance: int = 1):
         """
-        Initialize the LandsatSeqDataset.
+        Initialize the LandsatFutureDataset.
 
         Args:
             dataset_path (str): Path to the dataset file.
@@ -77,7 +77,7 @@ class LandsatSeqDataset(Dataset):
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         # Randomly select a starting point for the window -
         # Minus max_distance to make sure both X and y can fit in the sequence
-        start_idx = random.randint(0, self.seq_len - self.window_size - self.max_distance - 1)
+        start_idx = random.randint(0, self.seq_len - self.window_size - self.max_distance)
 
         # Extract the sequence of NDVI and year data for the given index based on the window size
         X = self.ndvi_year_data[start_idx : start_idx + self.window_size, idx, :]
@@ -94,7 +94,7 @@ class LandsatSeqDataset(Dataset):
 
 if __name__ == "__main__":
     # test the dataset
-    dataset = LandsatSeqDataset(dataset_path="data/Landsat_NDVI_time_series_1984_to_2024.tif", window_size=5, max_distance=1)
+    dataset = LandsatFutureDataset(dataset_path="data/Landsat_NDVI_time_series_1984_to_2024.tif", window_size=5, max_distance=1)
 
     def print_sample(dataset, index):
         X, y = dataset[index]

@@ -31,8 +31,11 @@ class TSLinearNDVIModel(nn.Module):
         self.year_embedder = nn.Embedding(num_years, year_embed_size)
         self.season_embedder = nn.Embedding(num_seasons, season_embed_size)
 
+        # Linear layer for processing the NDVI features
+        self.ndvi_processor = nn.Linear(sequence_length, ndvi_hidden_size)
+
         # Linear layer for processing the combined NDVI and temporal features
-        self.sequence_processor = nn.Linear(1 + year_embed_size + season_embed_size, ndvi_hidden_size)
+        self.sequence_processor = nn.Linear(ndvi_hidden_size + year_embed_size + season_embed_size, ndvi_hidden_size)
 
         # Combine processed features
         self.combiner = nn.Linear(ndvi_hidden_size * sequence_length + year_embed_size + season_embed_size, combined_hidden_size)
@@ -44,14 +47,20 @@ class TSLinearNDVIModel(nn.Module):
         self.relu = nn.ReLU()
 
     def forward(self, ndvi: torch.Tensor, years: torch.Tensor, seasons: torch.Tensor, target_year: torch.Tensor, target_season: torch.Tensor) -> torch.Tensor:
-        batch_size, seq_len = ndvi.shape
+        batch_size, seq_len, _ = ndvi.shape
+
+        # Flatten the input features
+        ndvi = ndvi.reshape(batch_size, -1)
+
+        # Process NDVI features
+        ndvi_processed = self.relu(self.ndvi_processor(ndvi))
 
         # Embed years and seasons for the entire sequence
         years_embedded = self.year_embedder(years)
         seasons_embedded = self.season_embedder(seasons)
 
         # Combine NDVI with embedded years and seasons
-        sequence_features = torch.cat([ndvi.unsqueeze(-1), years_embedded, seasons_embedded], dim=-1)
+        sequence_features = torch.cat([ndvi_processed, years_embedded, seasons_embedded], dim=-1)
 
         # Process the combined sequence
         processed_sequence = self.relu(self.sequence_processor(sequence_features))
