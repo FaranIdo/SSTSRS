@@ -4,8 +4,8 @@ import random
 import argparse
 from dataset import LandsatDataLoader, LandsatSpectralDataset, LandsatSeqDataset
 import logging
-from model import BERT
-from trainer import BERTTrainer
+from model import BERT, TemporalPositionalNDVITransformer
+from trainer import BERTTrainer, TemporalTrainer
 import os
 from datetime import datetime
 
@@ -135,11 +135,23 @@ def main():
     train_loader, val_loader = loader.create_data_loaders()
 
     logging.info("Creating model...")
-    # NDVI Data so num_features = 1
-    bert = BERT(num_features=1, hidden=256, n_layers=config.layers, attn_heads=config.attn_heads, dropout=config.dropout)
+    # # NDVI Data so num_features = 1
+    # bert = BERT(num_features=1, hidden=256, n_layers=config.layers, attn_heads=config.attn_heads, dropout=config.dropout)
 
-    trainer = BERTTrainer(
-        bert,
+    model = TemporalPositionalNDVITransformer(
+        embedding_dim=config.hidden_size,
+        num_encoder_layers=config.layers,
+        sequence_length=config.window_size,
+        start_year=1984,
+        end_year=2024,
+        attn_heads=config.attn_heads,
+        dropout=config.dropout,
+    )
+
+    trainer = TemporalTrainer(
+        model,
+        # trainer = BERTTrainer(
+        #    bert,
         config.num_features,
         train_loader,
         val_loader,
@@ -159,7 +171,7 @@ def main():
             train_loss, valida_loss = trainer.train(epoch)
             if mini_loss > valida_loss:
                 mini_loss = valida_loss
-                trainer.save(epoch)
+                trainer.save()
     except KeyboardInterrupt:
         logging.info("Training interrupted. Saving plots...")
     finally:

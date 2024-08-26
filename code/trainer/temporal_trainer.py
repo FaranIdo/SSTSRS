@@ -62,11 +62,11 @@ class LossLogger:
         plt.close()
 
 
-class BERTTrainer:
+class TemporalTrainer:
 
     def __init__(
         self,
-        bert: BERT,
+        model,
         num_features: int,
         train_loader: DataLoader,
         valid_loader: DataLoader,
@@ -88,8 +88,7 @@ class BERTTrainer:
         cuda_condition = torch.cuda.is_available() and with_cuda
         self.device = torch.device("cuda" if cuda_condition else "cpu")
 
-        self.bert = bert
-        self.model = BERTPrediction(bert, num_features).to(self.device)
+        self.model = model
 
         self.train_loader = train_loader
         self.valid_loader = valid_loader
@@ -98,7 +97,7 @@ class BERTTrainer:
         self.warmup_epochs = warmup_epochs
         self.optim_schedule = lr_scheduler.ExponentialLR(self.optim, gamma=decay_gamma)
         self.gradient_clippling = gradient_clipping_value
-        self.criterion = nn.L1Loss(reduction="mean")
+        self.criterion = nn.MSELoss(reduction="mean")
         self.mae_criterion = nn.L1Loss(reduction="mean")
         self.experiment_folder = experiment_folder
 
@@ -141,8 +140,17 @@ class BERTTrainer:
             year_seq = year_seq.to(self.device)
             targets = targets.to(self.device)
 
+            # we need to convert create season encoding from year_seq by
+            # if year is full number (1980, 1981, 1982) - season is 0
+            # if year is full number + 0.5 (1980.5, 1981.5, 1982.5) - season is 1
+
+            seasons = torch.where(year_seq % 1 == 0, 0, 1)
+
+            # convert year_seq to int
+            year_seq_int = year_seq.int()
+
             # Call the model to get the prediction
-            outputs = self.model(x, year_seq)
+            outputs = self.model(x, year_seq_int, seasons)
 
             # takes only the first dimension of the targets cause we don't need the year, also remove it from the outputs
             y = targets[:, 0]
@@ -193,8 +201,17 @@ class BERTTrainer:
             year_seq = year_seq.to(self.device)
             targets = targets.to(self.device)
 
+            # we need to convert create season encoding from year_seq by
+            # if year is full number (1980, 1981, 1982) - season is 0
+            # if year is full number + 0.5 (1980.5, 1981.5, 1982.5) - season is 1
+
+            seasons = torch.where(year_seq % 1 == 0, 0, 1)
+
+            # convert year_seq to int
+            year_seq_int = year_seq.int()
+
             with torch.no_grad():
-                outputs = self.model(x, year_seq)
+                outputs = self.model(x, year_seq_int, seasons)
 
                 # takes only the first dimension of the targets cause we don't need the year, also remove it from the outputs
                 y = targets[:, 0]
@@ -237,16 +254,6 @@ class BERTTrainer:
             logging.info("Model and optimizer state saved successfully.")
         except Exception as e:
             logging.error(f"Error saving model checkpoint: {e}")
-
-        bert_path = os.path.join(self.experiment_folder, f"checkpoint.bert.tar")
-        logging.info(f"Saving BERT state to: {bert_path}")
-
-        try:
-            torch.save(self.bert.state_dict(), bert_path)
-            self.bert.to(self.device)
-            logging.info("BERT state saved successfully.")
-        except Exception as e:
-            logging.error(f"Error saving BERT state: {e}")
 
         return output_path
 
