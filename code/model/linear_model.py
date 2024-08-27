@@ -23,7 +23,7 @@ class LinearNDVIModel(nn.Module):
 
 
 class TSLinearNDVIModel(nn.Module):
-    def __init__(self, sequence_length: int, ndvi_hidden_size: int, year_embed_size: int, season_embed_size: int, num_years: int, num_seasons: int, combined_hidden_size: int):
+    def __init__(self, sequence_length: int, ndvi_hidden_size: int, year_embed_size: int, season_embed_size: int, num_years: int, num_seasons: int):
         super(TSLinearNDVIModel, self).__init__()
         self.sequence_length = sequence_length
 
@@ -32,25 +32,19 @@ class TSLinearNDVIModel(nn.Module):
         self.season_embedder = nn.Embedding(num_seasons, season_embed_size)
 
         # Linear layer for processing the NDVI features
-        self.ndvi_processor = nn.Linear(sequence_length, ndvi_hidden_size)
+        self.ndvi_processor = nn.Linear(1, ndvi_hidden_size)
 
         # Linear layer for processing the combined NDVI and temporal features
         self.sequence_processor = nn.Linear(ndvi_hidden_size + year_embed_size + season_embed_size, ndvi_hidden_size)
 
-        # Combine processed features
-        self.combiner = nn.Linear(ndvi_hidden_size * sequence_length + year_embed_size + season_embed_size, combined_hidden_size)
-
         # Final prediction layer
-        self.predictor = nn.Linear(combined_hidden_size, 1)
+        self.predictor = nn.Linear(ndvi_hidden_size * sequence_length, 1)
 
         # Activation function for intermediate layers
         self.relu = nn.ReLU()
 
-    def forward(self, ndvi: torch.Tensor, years: torch.Tensor, seasons: torch.Tensor, target_year: torch.Tensor, target_season: torch.Tensor) -> torch.Tensor:
+    def forward(self, ndvi: torch.Tensor, years: torch.Tensor, seasons: torch.Tensor) -> torch.Tensor:
         batch_size, seq_len, _ = ndvi.shape
-
-        # Flatten the input features
-        ndvi = ndvi.reshape(batch_size, -1)
 
         # Process NDVI features
         ndvi_processed = self.relu(self.ndvi_processor(ndvi))
@@ -66,15 +60,18 @@ class TSLinearNDVIModel(nn.Module):
         processed_sequence = self.relu(self.sequence_processor(sequence_features))
         processed_sequence = processed_sequence.view(batch_size, -1)
 
-        # Embed target year and season
-        target_year_embedded = self.year_embedder(target_year)
-        target_season_embedded = self.season_embedder(target_season)
-
-        # Combine all features
-        combined_features = torch.cat([processed_sequence, target_year_embedded, target_season_embedded], dim=1)
-        combined_features = self.relu(self.combiner(combined_features))
-
         # Make prediction
-        output = self.predictor(combined_features)
+        output = self.predictor(processed_sequence)
 
         return output
+
+if __name__ == "__main__":
+    model = TSLinearNDVIModel(sequence_length=6, ndvi_hidden_size=5, year_embed_size=5, season_embed_size=5, num_years=41, num_seasons=2)
+    print(model)
+
+    # sample call to forward
+    ndvi = torch.randn(1024, 6, 1)
+    years = torch.randint(0, 41, (1024, 6))  # Assuming years range from 0 to 40
+    seasons = torch.randint(0, 2, (1024, 6))  # Assuming 2 seasons (0 and 1)
+    output = model(ndvi, years, seasons)
+    print(output.shape)

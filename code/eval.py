@@ -55,14 +55,7 @@ def evaluate_model(model, val_loader, device):
             year_seq = year_seq.squeeze(-1)
             x = x.to(device)
             year_seq = year_seq.to(device)
-
-            # Extract NDVI, year, and season from targets
-            # y_ndvi = targets[:, 0].to(device)
-            # y_year = targets[:, 1].to(device)
-            # y_season = torch.where(y_year % 1 == 0, 0, 1)
-            # y_year = y_year.int()
             seasons = torch.where(year_seq % 1 == 0, 0, 1)
-
             year_seq_int = year_seq.int()
 
             with torch.no_grad():
