@@ -31,6 +31,9 @@ class TemporalPositionalNDVITransformer(nn.Module):
         self.embedding_dim = embedding_dim
 
         # Embeddings
+
+        # Embed the NDVI values- only num_features and not sequence_length, because we don't want to "interact" the features yet
+        # Interactions will be done in the transformer encoder
         self.ndvi_embed = nn.Linear(num_features, embedding_dim)
 
         # Temporal encoding
@@ -66,7 +69,9 @@ class TemporalPositionalNDVITransformer(nn.Module):
         Returns:
             torch.Tensor: The output of the model.
         """
-        batch_size, seq_len, _ = ndvi.shape
+        batch_size, seq_len = ndvi.shape
+
+        ndvi = ndvi.unsqueeze(2)
 
         # Embed NDVI values
         ndvi_embedding = self.ndvi_embed(ndvi)
@@ -93,4 +98,5 @@ class TemporalPositionalNDVITransformer(nn.Module):
         output = self.pooling(output.permute(1, 2, 0)).squeeze()
 
         # Pass through output layer
-        return self.output_layer(output)
+        output = self.output_layer(output)
+        return output.squeeze(-1)

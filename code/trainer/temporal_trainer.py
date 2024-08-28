@@ -10,6 +10,7 @@ from model import BERT, BERTPrediction
 import logging
 from datetime import datetime
 import matplotlib.pyplot as plt
+import torch.nn.functional as F
 
 torch.manual_seed(0)
 
@@ -112,55 +113,38 @@ class TemporalTrainer:
 
         self.loss_logger = LossLogger(self.experiment_folder)
 
+    @staticmethod
+    def convert_inputs_targets_to_model(inputs, targets, device):
+        ndvi, year, season = inputs[..., 0], inputs[..., 1], inputs[..., 2]
+        year = year.int()
+        season = season.int()
+        # move all to device
+        ndvi = ndvi.to(device)
+        year = year.to(device)
+        season = season.to(device)
+        targets = targets.to(device)
+        return ndvi, year, season, targets
+
     def train(self, epoch):
         logging.info("Training model on device: %s, epoch: %d", self.device, epoch)
 
         self.model.train()
 
-        data_iter = tqdm(enumerate(self.train_loader), desc="EP_%s:%d" % ("train", epoch), total=len(self.train_loader), bar_format="{l_bar}{r_bar}")
+        data_iter = tqdm(enumerate(self.train_loader), desc="EP_%s:%d" % ("train", epoch), total=len(self.train_loader), bar_format="{l_bar}{r_bar}\n")
 
         train_loss = 0.0
         train_mae = 0.0
         for i, data in data_iter:
             inputs, targets = data
+            import ipdb
 
-            # inputs shape: torch.Size([512, 5, 2])
-            # targets shape: torch.Size([512, 2])
-            # split based on last dimension to get x and year_seq
-            x, year_seq = inputs.split(1, dim=-1)
-
-            # Resize year_seq to remove the last dimension
-            # X shouldn't be resized cause we have num_features dimension
-
-            # TODO - once I want to do "multi step prediction" I need to use the year from y
-            year_seq = year_seq.squeeze(-1)
-
-            # move to device
-            x = x.to(self.device)
-            year_seq = year_seq.to(self.device)
-            targets = targets.to(self.device)
-
-            # we need to convert create season encoding from year_seq by
-            # if year is full number (1980, 1981, 1982) - season is 0
-            # if year is full number + 0.5 (1980.5, 1981.5, 1982.5) - season is 1
-
-            seasons = torch.where(year_seq % 1 == 0, 0, 1)
-
-            # convert year_seq to int
-            year_seq_int = year_seq.int()
-
-            # target_year = targets[:, 1].int()
-            # target_season = torch.where(target_year % 1 == 0, 0, 1)
+            ipdb.set_trace()
+            ndvi, year, season, targets = self.convert_inputs_targets_to_model(inputs, targets, self.device)
 
             # Call the model to get the prediction
-            # outputs = self.model(x, year_seq_int, seasons, target_year, target_season)
-            outputs = self.model(x, year_seq_int, seasons)
-
-            # takes only the first dimension of the targets cause we don't need the year, also remove it from the outputs
-            y = targets[:, 0]
-            outputs = outputs[:, 0]
-            loss = self.criterion(y, outputs)
-            mae = self.mae_criterion(y, outputs)
+            outputs = self.model(ndvi, year, season)
+            loss = self.criterion(targets, outputs)
+            mae = self.mae_criterion(targets, outputs)
 
             self.optim.zero_grad()
             loss.backward()
@@ -197,37 +181,21 @@ class TemporalTrainer:
         total_batches = len(self.valid_loader)
         # Initialize tqdm for progress tracking with a better description
 
-        data_iter = tqdm(enumerate(self.valid_loader), desc="EP_valid", total=len(self.valid_loader), bar_format="{l_bar}{r_bar}")
+        data_iter = tqdm(enumerate(self.valid_loader), desc="EP_valid", total=len(self.valid_loader), bar_format="{l_bar}{r_bar}\n")
         for i, (inputs, targets) in data_iter:
-            x, year_seq = inputs.split(1, dim=-1)
-            year_seq = year_seq.squeeze(-1)
-            x = x.to(self.device)
-            year_seq = year_seq.to(self.device)
-            targets = targets.to(self.device)
-
-            # we need to convert create season encoding from year_seq by
-            # if year is full number (1980, 1981, 1982) - season is 0
-            # if year is full number + 0.5 (1980.5, 1981.5, 1982.5) - season is 1
-
-            seasons = torch.where(year_seq % 1 == 0, 0, 1)
-
-            # convert year_seq to int
-            year_seq_int = year_seq.int()
+            ndvi, year, season, targets = self.convert_inputs_targets_to_model(inputs, targets, self.device)
 
             with torch.no_grad():
-                outputs = self.model(x, year_seq_int, seasons)
+                outputs = self.model(ndvi, year, season)
 
-                # takes only the first dimension of the targets cause we don't need the year, also remove it from the outputs
-                y = targets[:, 0]
-                outputs = outputs[:, 0]
-                loss = self.criterion(y, outputs)
-                mae = self.mae_criterion(y, outputs)
+            loss = self.criterion(targets, outputs)
+            mae = self.mae_criterion(targets, outputs)
 
             valid_loss += loss.item()
             valid_mae += mae.item()
             counter += 1
 
-            if i % 10 == 0:
+            if i % 100 == 0:
                 post_fix = {
                     "validation_iter": i,
                     "validation_avg_loss": valid_loss / (i + 1),

@@ -1,6 +1,7 @@
 import torch
-from model import LinearNDVIModel, TemporalPositionalNDVITransformer, FullyConnectedNDVIModel, TSLinearNDVIModel, TSFullyConnectedNDVIModel
+from model import LinearNDVIModel, TemporalPositionalNDVITransformer, FullyConnectedNDVIModel, TSLinearEmbeddingNDVIModel, TSFCEmbeddingNDVIModel
 from dataset.landsat_seq import LandsatSeqDataset
+from dataset.landsat_future_ts import LandsatFutureDataset
 from dataset.data_loader import LandsatDataLoader
 from trainer.temporal_trainer import TemporalTrainer
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
@@ -16,13 +17,13 @@ def setup_logging():
 
 
 def define_hyperparameters():
-    return {"dataset_path": "data/Landsat_NDVI_time_series_1984_to_2024.tif", "batch_size": 1024, "num_workers": 4, "num_epochs": 5, "lr": 1e-3}
+    return {"dataset_path": "data/Landsat_NDVI_time_series_1984_to_2024.tif", "batch_size": 64, "num_workers": 4, "num_epochs": 5, "lr": 1e-3}
 
 
 def create_dataloader(dataset_path, window_size, batch_size, num_workers):
-    dataset = LandsatSeqDataset(dataset_path=dataset_path, window_size=window_size)
+    dataset = LandsatFutureDataset(dataset_path=dataset_path, window_size=window_size)
     # use LandsatDataLoader
-    loader = LandsatDataLoader(dataset, batch_size, train_rate=0.1, val_rate=0.5, num_workers=num_workers)
+    loader = LandsatDataLoader(dataset, batch_size, train_rate=0.01, val_rate=0.05, num_workers=num_workers)
     train_loader, val_loader = loader.create_data_loaders()
     return train_loader, val_loader
 
@@ -51,21 +52,12 @@ def evaluate_model(model, val_loader, device):
 
     with torch.no_grad():
         for inputs, targets in tqdm(val_loader, desc=f"Evaluating {model.__class__.__name__}"):
-            x, year_seq = inputs.split(1, dim=-1)
-            year_seq = year_seq.squeeze(-1)
-            x = x.to(device)
-            year_seq = year_seq.to(device)
-            seasons = torch.where(year_seq % 1 == 0, 0, 1)
-            year_seq_int = year_seq.int()
+            ndvi, year_seq_int, seasons, targets = TemporalTrainer.convert_inputs_targets_to_model(inputs, targets, device)
 
             with torch.no_grad():
-                outputs = model(x, year_seq_int, seasons)
+                outputs = model(ndvi, year_seq_int, seasons)
 
-            # takes only the first dimension of the targets cause we don't need the year, also remove it from the outputs
-            y = targets[:, 0]
-            outputs = outputs[:, 0]
-
-            y_true.extend(y.cpu().numpy())
+            y_true.extend(targets.cpu().numpy())
             y_pred.extend(outputs.cpu().numpy())
 
     l1_loss = mean_absolute_error(y_true, y_pred)
@@ -111,7 +103,7 @@ def train_and_evaluate_models(models, dataset_path, batch_size, num_workers, num
         os.makedirs(experiment_folder, exist_ok=True)
 
         # Create data loader for the model
-        train_loader, val_loader = create_dataloader(dataset_path, model.sequence_length, batch_size, num_workers)
+        train_loader, val_loader = create_dataloader(dataset_path, model.sequence_length - 1, batch_size, num_workers)
 
         # Check if the model has already been trained
         checkpoint_path = os.path.join(experiment_folder, "checkpoint.tar")
@@ -149,7 +141,7 @@ def main(models):
         os.makedirs(experiment_folder, exist_ok=True)
 
         # Create data loader for the model
-        train_loader, val_loader = create_dataloader(h["dataset_path"], model.sequence_length, h["batch_size"], h["num_workers"])
+        train_loader, val_loader = create_dataloader(h["dataset_path"], model.sequence_length - 1, h["batch_size"], h["num_workers"])
 
         # Check if the model has already been trained
         checkpoint_path = os.path.join(experiment_folder, "checkpoint.tar")
@@ -182,18 +174,20 @@ if __name__ == "__main__":
 
     # Create a list of models to evaluate
     models = [
-        # (TSLinearNDVIModel(sequence_length=5, ndvi_hidden_size=64, year_embed_size=16, season_embed_size=16, num_years=41, num_seasons=2, combined_hidden_size=64), "ts_linear_5"),
+        # (LinearNDVIModel(sequence_length=6), "linear_test_seq6"),
+        # (LinearNDVIModel(sequence_length=11), "linear_test_seq11"),
+        # (TSLinearEmbeddingNDVIModel(sequence_length=6, ndvi_hidden_size=64, embed_size=15), "linear_embed_seq6"),
+        # (TSLinearEmbeddingNDVIModel(sequence_length=11, ndvi_hidden_size=64, embed_size=15), "linear_embed_seq11"),
+        # (FullyConnectedNDVIModel(sequence_length=6, hidden_size=64, num_layers=3), "fc_seq5_layers3"),
+        # (TSFCEmbeddingNDVIModel(sequence_length=6, ndvi_hidden_size=64, embed_size=15, hidden_sizes=[64, 64]), "ts_fc_5"),
         # (TSFullyConnectedNDVIModel(sequence_length=5, num_years=41, num_seasons=2, year_embed_size=16, season_embed_size=16, hidden_sizes=[64, 64]), "ts_fc_5"),
-        # (TemporalPositionalNDVITransformer(embedding_dim=256, num_encoder_layers=3, sequence_length=5, start_year=1984, end_year=2024, attn_heads=8, dropout=0.0), "24-08-26_00-06_temporal_200_d2"),
-        (LinearNDVIModel(num_features=1, sequence_length=5), "linear_5"),
-        # (LinearNDVIModel(num_features=1, sequence_length=10), "linear_10"),
-        # (LinearNDVIModel(num_features=1, sequence_length=20), "linear_20"),
-        # (FullyConnectedNDVIModel(num_features=1, sequence_length=5, hidden_size=64, num_layers=2), "fc_seq5_layers2"),
-        # (FullyConnectedNDVIModel(num_features=1, sequence_length=10, hidden_size=64, num_layers=2), "fc_seq10_layers2"),
-        # (FullyConnectedNDVIModel(num_features=1, sequence_length=20, hidden_size=64, num_layers=2), "fc_seq20_layers2"),
-        # (FullyConnectedNDVIModel(num_features=1, sequence_length=5, hidden_size=64, num_layers=4), "fc_seq5_layers4"),
-        # (FullyConnectedNDVIModel(num_features=1, sequence_length=10, hidden_size=64, num_layers=4), "fc_seq10_layers4"),
-        # (FullyConnectedNDVIModel(num_features=1, sequence_length=20, hidden_size=64, num_layers=4), "fc_seq20_layers4"),
+        (TemporalPositionalNDVITransformer(embedding_dim=256, num_encoder_layers=3, sequence_length=6, start_year=1984, end_year=2024, attn_heads=8, dropout=0.2), "idotest"),
+        # (FullyConnectedNDVIModel(sequence_length=5, hidden_size=64, num_layers=2), "fc_seq5_layers2"),
+        # (FullyConnectedNDVIModel(sequence_length=10, hidden_size=64, num_layers=2), "fc_seq10_layers2"),
+        # (FullyConnectedNDVIModel(sequence_length=20, hidden_size=64, num_layers=2), "fc_seq20_layers2"),
+        # (FullyConnectedNDVIModel(sequence_length=5, hidden_size=64, num_layers=4), "fc_seq5_layers4"),
+        # (FullyConnectedNDVIModel(sequence_length=10, hidden_size=64, num_layers=4), "fc_seq10_layers4"),
+        # (FullyConnectedNDVIModel(sequence_length=20, hidden_size=64, num_layers=4), "fc_seq20_layers4"),
         # Add more models here
     ]
 

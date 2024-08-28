@@ -3,13 +3,13 @@ import torch.nn as nn
 
 
 class FullyConnectedNDVIModel(nn.Module):
-    def __init__(self, num_features: int, sequence_length: int, hidden_size: int, num_layers: int):
+
+    def __init__(self, sequence_length: int, hidden_size: int, num_layers: int):
         super(FullyConnectedNDVIModel, self).__init__()
-        self.num_features = num_features
         self.sequence_length = sequence_length
 
         layers = []
-        layers.append(nn.Linear(num_features * sequence_length, hidden_size))
+        layers.append(nn.Linear(sequence_length, hidden_size))
         layers.append(nn.ReLU())
 
         for _ in range(num_layers - 1):
@@ -21,28 +21,40 @@ class FullyConnectedNDVIModel(nn.Module):
         self.fc_layers = nn.Sequential(*layers)
 
     def forward(self, ndvi: torch.Tensor, years: torch.Tensor, seasons: torch.Tensor) -> torch.Tensor:
-        batch_size, seq_len, _ = ndvi.shape
-
         # Flatten the input features
-        x = ndvi.reshape(batch_size, -1)
+        ndvi_flat = ndvi.view(-1, self.sequence_length)
 
         # Pass through fully connected layers
-        output = self.fc_layers(x)
+        output = self.fc_layers(ndvi_flat).squeeze(-1)
 
         return output
 
 
-class TSFullyConnectedNDVIModel(nn.Module):
-    def __init__(self, sequence_length: int, num_years: int, num_seasons: int, year_embed_size: int, season_embed_size: int, hidden_sizes: list):
-        super(TSFullyConnectedNDVIModel, self).__init__()
+class TSFCEmbeddingNDVIModel(nn.Module):
+
+    def __init__(self, sequence_length: int, ndvi_hidden_size: int, embed_size: int, hidden_sizes: list):
+        """
+        Initialize the TSFullyConnectedNDVIModel - predict multi-year NDVI.
+
+        Args:
+            sequence_length (int): Length of the input sequence - how many years of NDVI data we have.
+            ndvi_hidden_size (int): Size of the hidden layer for NDVI processing.
+            embed_size (int): Size of the embedding for both years and seasons.
+            hidden_sizes (list): List of hidden sizes for fully connected layers.
+        """
+        super(TSFCEmbeddingNDVIModel, self).__init__()
+
         self.sequence_length = sequence_length
 
         # Embedding layers for years and seasons
-        self.year_embedder = nn.Embedding(num_years, year_embed_size)
-        self.season_embedder = nn.Embedding(num_seasons, season_embed_size)
+        self.year_embedder = nn.Embedding(3000, embed_size)
+        self.season_embedder = nn.Embedding(2, embed_size)
+
+        # Linear layer for processing the NDVI features
+        self.ndvi_processor = nn.Linear(1, ndvi_hidden_size)
 
         # Calculate input size for the first dense layer
-        input_size = sequence_length * (1 + year_embed_size + season_embed_size) + year_embed_size + season_embed_size
+        input_size = (ndvi_hidden_size + embed_size * 2) * sequence_length
 
         # Create fully connected layers
         layers = []
@@ -51,30 +63,28 @@ class TSFullyConnectedNDVIModel(nn.Module):
             layers.append(nn.ReLU())
             input_size = hidden_size
 
-        # Add final output layer
-        layers.append(nn.Linear(input_size, 1))
-
+        # Add final output layer to make prediction per value in batch
+        layers.append(nn.Linear(hidden_sizes[-1], 1))
         self.fc_layers = nn.Sequential(*layers)
 
-    def forward(self, ndvi: torch.Tensor, years: torch.Tensor, seasons: torch.Tensor, target_year: torch.Tensor, target_season: torch.Tensor) -> torch.Tensor:
-        batch_size, seq_len = ndvi.shape
+    def forward(self, ndvi: torch.Tensor, years: torch.Tensor, seasons: torch.Tensor) -> torch.Tensor:
+        # Process NDVI features
+        ndvi_processed = self.ndvi_processor(ndvi.unsqueeze(-1)).squeeze(-1)
 
         # Embed years and seasons for the entire sequence
         years_embedded = self.year_embedder(years)
         seasons_embedded = self.season_embedder(seasons)
 
+        # Convert embedded tensors to float to concatenate with ndvi which is float
+        years_embedded = years_embedded.float()
+        seasons_embedded = seasons_embedded.float()
+
         # Combine NDVI with embedded years and seasons
-        sequence_features = torch.cat([ndvi.unsqueeze(-1), years_embedded, seasons_embedded], dim=-1)
-        sequence_features = sequence_features.view(batch_size, -1)
+        sequence_features = torch.cat([ndvi_processed, years_embedded, seasons_embedded], dim=-1)
 
-        # Embed target year and season
-        target_year_embedded = self.year_embedder(target_year)
-        target_season_embedded = self.season_embedder(target_season)
-
-        # Concatenate all inputs
-        x = torch.cat([sequence_features, target_year_embedded, target_season_embedded], dim=1)
+        # Flatten the sequence features
+        sequence_features = sequence_features.view(sequence_features.size(0), -1)
 
         # Pass through fully connected layers
-        output = self.fc_layers(x)
-
+        output = self.fc_layers(sequence_features).squeeze(-1)
         return output

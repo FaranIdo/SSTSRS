@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import random
 import argparse
-from dataset import LandsatDataLoader, LandsatSpectralDataset, LandsatSeqDataset
+from dataset import LandsatDataLoader, LandsatFutureDataset
 import logging
 from model import BERT, TemporalPositionalNDVITransformer
 from trainer import BERTTrainer, TemporalTrainer
@@ -115,6 +115,7 @@ def Config():
     )
     parser.add_argument("--window_size", default=5, type=int, help="time series window size of the data - how many timesteps to look at to predict the next timestep")
     parser.add_argument("--name", type=str, default="experiment", help="Name of the experiment for TensorBoard logging")
+    parser.add_argument("--future_window_size", default=0, type=int, help="time series window size of the data - how many timesteps to look at to predict the next timestep")
     return parser.parse_args()
 
 
@@ -130,7 +131,7 @@ def main():
     logging.info("Starting training, experiment folder: %s", experiment_folder)
 
     logging.info("Loading datasets...")
-    dataset = LandsatSeqDataset(config.dataset_path, config.window_size)
+    dataset = LandsatFutureDataset(config.dataset_path, config.window_size, max_distance=config.future_window_size)
     loader = LandsatDataLoader(dataset, config.batch_size, config.train_rate, config.val_rate, config.num_workers)
     train_loader, val_loader = loader.create_data_loaders()
 
