@@ -115,7 +115,9 @@ def Config():
     )
     parser.add_argument("--window_size", default=5, type=int, help="time series window size of the data - how many timesteps to look at to predict the next timestep")
     parser.add_argument("--name", type=str, default="experiment", help="Name of the experiment for TensorBoard logging")
-    parser.add_argument("--future_window_size", default=0, type=int, help="time series window size of the data - how many timesteps to look at to predict the next timestep")
+    parser.add_argument(
+        "--future_window_size", default=0, type=int, help="time series window size of the data - how many timesteps to look at to predict the next timestep (default: 0, means next image in the seq)"
+    )
     return parser.parse_args()
 
 
