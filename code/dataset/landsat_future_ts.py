@@ -13,7 +13,7 @@ random.seed(SEED)
 
 class LandsatFutureDataset(Dataset):
 
-    def __init__(self, dataset_path: str, window_size: int, max_distance: int = 0):
+    def __init__(self, dataset_path: str, window_size: int, max_distance: int = 0, exact_distance=True):
         """
         Initialize the LandsatFutureDataset.
 
@@ -22,10 +22,12 @@ class LandsatFutureDataset(Dataset):
             window_size (int): Size of the window to extract sequences. Note that last NDVI is used as target, so lookback window is actually window_size -1.
             # Example: If window_size is 11, it means we will look at the past 10 images, which corresponds to 5 years with 2 seasons each, and the 11th value will be the target.
             max_distance (int, optional): Maximum distance to select the target value. Defaults to 0 = next season.
+            exact_distance (bool, optional): If True, both window and max_distance are exact. If False, both are selected randomly up to the given values.
         """
         self.window_size = window_size
         self.max_distance = max_distance
         self.dataset_path = dataset_path
+        self.exact_distance = exact_distance
         self.ndvi, self.years = self.load_data(dataset_path)
         self.seasons = torch.where(torch.from_numpy(self.years) % 1 == 0, 0, 1)
         self.years = self.years.astype(int)
@@ -79,24 +81,36 @@ class LandsatFutureDataset(Dataset):
         return self.ndvi.shape[1]
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
-        # Randomly select a starting point for the window -
-        # Minus max_distance to make sure both X and y can fit in the sequence
-        start_idx = random.randint(0, self.seq_len - self.window_size - self.max_distance - 1)
+        if self.exact_distance:
+            # Randomly select a starting point, ensuring enough room for window_size and max_distance
+            start_idx = random.randint(0, self.seq_len - self.window_size - self.max_distance - 1)
+            end_idx = start_idx + self.window_size - 1
+            far_idx = end_idx + self.max_distance + 1
+        else:
+            # Use random distances
+            end_idx = random.randint(self.window_size - 1, self.seq_len - self.max_distance - 1)
+            lookback = random.randint(5, self.window_size)
+            start_idx = end_idx - lookback + 1
+            far_idx = random.randint(end_idx + 1, min(end_idx + self.max_distance + 1, self.seq_len - 1))
 
-        # Extract the sequence of NDVI, year, and season data for the given index based on the window size
-        ndvi_seq = self.ndvi[start_idx : start_idx + self.window_size, idx]
-        years_seq = self.years[start_idx : start_idx + self.window_size, idx].tolist()
-        seasons_seq = self.seasons[start_idx : start_idx + self.window_size, idx].tolist()
+        # Extract the sequence of NDVI, year, and season data
+        ndvi_seq = self.ndvi[start_idx : end_idx + 1, idx]
+        years_seq = self.years[start_idx : end_idx + 1, idx]
+        seasons_seq = self.seasons[start_idx : end_idx + 1, idx]
 
-        # Randomly select a "far" value within the max_distance range
-        far_idx = random.randint(start_idx + self.window_size, start_idx + self.window_size + self.max_distance)
         y = self.ndvi[far_idx, idx]
 
-        # Combine the year + season of "far_idx" to (X years)
+        # Pad sequences to window_size (backward padding)
+        pad_size = self.window_size - (end_idx - start_idx + 1)
+        ndvi_seq = np.pad(ndvi_seq, (pad_size, 0), "constant", constant_values=0)
+        years_seq = np.pad(years_seq, (pad_size, 0), "constant", constant_values=0)
+        seasons_seq = np.pad(seasons_seq, (pad_size, 0), "constant", constant_values=0)
+
+        # Append the far index year and season
         years_seq = np.append(years_seq, self.years[far_idx, idx])
         seasons_seq = np.append(seasons_seq, self.seasons[far_idx, idx])
 
-        # Pad the NDVI of X by one
+        # Pad the NDVI sequence by one more to match years and seasons
         ndvi_seq = np.pad(ndvi_seq, (0, 1), "constant", constant_values=0)
 
         # Stack NDVI, years, and seasons to create the final X
@@ -110,7 +124,7 @@ class LandsatFutureDataset(Dataset):
 
 if __name__ == "__main__":
     # test the dataset
-    dataset = LandsatFutureDataset(dataset_path="data/Landsat_NDVI_time_series_1984_to_2024.tif", window_size=5, max_distance=0)
+    dataset = LandsatFutureDataset(dataset_path="data/Landsat_NDVI_time_series_1984_to_2024.tif", window_size=15, max_distance=0, exact_distance=True)
     def print_sample(dataset, index):
         X, y = dataset[index]
         y_value = y.item()
@@ -123,6 +137,7 @@ if __name__ == "__main__":
         print(f"X Seasons: {X_seasons}")
         print(f"y Value: {y_value}")
 
+    print_sample(dataset, 1)
     print_sample(dataset, 20)
     print_sample(dataset, 100)
     print_sample(dataset, 15)

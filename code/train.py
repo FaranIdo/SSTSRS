@@ -42,12 +42,6 @@ def Config():
     parser.add_argument("--train_rate", default=0.1, type=float, help="Proportion of samples used for training")
     parser.add_argument("--val_rate", default=0.05, type=float, help="Proportion of samples used for validation")
     parser.add_argument(
-        "--max_length",
-        default=75,
-        type=int,
-        help="The maximum length of input time series. Sequences longer " "than this will be truncated, sequences shorter will be padded.",
-    )
-    parser.add_argument(
         "--num_features",
         default=1,
         type=int,
@@ -79,7 +73,7 @@ def Config():
     )
     parser.add_argument(
         "--epochs",
-        default=100,
+        default=200,
         type=int,
         help="",
     )
@@ -133,7 +127,7 @@ def main():
     logging.info("Starting training, experiment folder: %s", experiment_folder)
 
     logging.info("Loading datasets...")
-    dataset = LandsatFutureDataset(config.dataset_path, config.window_size, max_distance=config.future_window_size)
+    dataset = LandsatFutureDataset(config.dataset_path, config.window_size, max_distance=config.future_window_size, exact_distance=False)
     loader = LandsatDataLoader(dataset, config.batch_size, config.train_rate, config.val_rate, config.num_workers)
     train_loader, val_loader = loader.create_data_loaders()
 

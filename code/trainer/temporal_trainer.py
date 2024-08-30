@@ -136,9 +136,6 @@ class TemporalTrainer:
         train_mae = 0.0
         for i, data in data_iter:
             inputs, targets = data
-            import ipdb
-
-            ipdb.set_trace()
             ndvi, year, season, targets = self.convert_inputs_targets_to_model(inputs, targets, self.device)
 
             # Call the model to get the prediction
