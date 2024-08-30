@@ -6,11 +6,8 @@ from torch.optim import Adam
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from model import BERT, BERTPrediction
 import logging
-from datetime import datetime
 import matplotlib.pyplot as plt
-import torch.nn.functional as F
 
 torch.manual_seed(0)
 

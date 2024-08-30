@@ -1,5 +1,5 @@
 import torch
-from model import LinearNDVIModel, TemporalPositionalNDVITransformer, FullyConnectedNDVIModel, TSLinearEmbeddingNDVIModel, TSFCEmbeddingNDVIModel
+from model import LinearNDVIModel, TemporalPositionalNDVITransformer, FullyConnectedNDVIModel, TSLinearEmbeddingNDVIModel, TSFCEmbeddingNDVIModel, LSTMNDVIModel, CNNNDVIModel, SVMNDVIModel
 from dataset.landsat_seq import LandsatSeqDataset
 from dataset.landsat_future_ts import LandsatFutureDataset
 from dataset.data_loader import LandsatDataLoader
@@ -19,13 +19,13 @@ def setup_logging():
 
 
 def define_hyperparameters():
-    return {"dataset_path": "data/Landsat_NDVI_time_series_1984_to_2024.tif", "batch_size": 64, "num_workers": 4, "num_epochs": 10, "lr": 1e-3}
+    return {"dataset_path": "data/Landsat_NDVI_time_series_1984_to_2024.tif", "batch_size": 64, "num_workers": 4, "num_epochs": 2, "lr": 1e-3}
 
 
 def create_dataloader(dataset_path, window_size, batch_size, num_workers, max_distance):
     dataset = LandsatFutureDataset(dataset_path=dataset_path, window_size=window_size, max_distance=max_distance)
     # use LandsatDataLoader
-    loader = LandsatDataLoader(dataset, batch_size, train_rate=0.1, val_rate=0.005, num_workers=num_workers)
+    loader = LandsatDataLoader(dataset, batch_size, train_rate=0.05, val_rate=0.005, num_workers=num_workers)
     train_loader, val_loader = loader.create_data_loaders()
     return train_loader, val_loader
 
@@ -239,8 +239,11 @@ def train_and_eval_multiple_models(use_pretrained):
         # (FullyConnectedNDVIModel(sequence_length=20, hidden_size=64, num_layers=4), "fc_seq20_layers4", 0),
         # Add more models here
         # (TSFullyConnectedNDVIModel(sequence_length=5, num_years=41, num_seasons=2, year_embed_size=16, season_embed_size=16, hidden_sizes=[64, 64]), "ts_fc_5", 0),
-        (FullyConnectedNDVIModel(sequence_length=11, hidden_size=64, num_layers=3), "fc_seq11_layers3", 0),
+        # (FullyConnectedNDVIModel(sequence_length=11, hidden_size=64, num_layers=3), "fc_seq11_layers3", 0),
         (TemporalPositionalNDVITransformer(embedding_dim=256, num_encoder_layers=3, sequence_length=11, start_year=1984, end_year=2024, attn_heads=8, dropout=0.2), "transformer_seq11", 0),
+        # (SVMNDVIModel(sequence_length=11), "svm_model_seq11", 0),
+        (LSTMNDVIModel(sequence_length=11, hidden_size=64, num_layers=3), "lstm_seq11_layers3", 0),
+        (CNNNDVIModel(sequence_length=11, num_channels=64, kernel_size=3, num_layers=3), "cnn_seq11_layers3", 0),
     ]
 
     main(models, use_pretrained)
