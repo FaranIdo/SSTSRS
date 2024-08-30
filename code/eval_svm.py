@@ -20,7 +20,7 @@ def load_data(dataset_path, window_size, max_distance):
 
 
 def create_data_splits(dataset, batch_size, num_workers):
-    loader = LandsatDataLoader(dataset, batch_size, train_rate=0.01, val_rate=0.0   1, num_workers=num_workers)
+    loader = LandsatDataLoader(dataset, batch_size, train_rate=0.01, val_rate=0.005, num_workers=num_workers)
     train_loader, val_loader = loader.create_data_loaders()
     return train_loader, val_loader
 
