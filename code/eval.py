@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
+import time
 
 def setup_logging():
     logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO, datefmt="%Y-%m-%d %H:%M:%S")
@@ -25,7 +26,7 @@ def define_hyperparameters():
 def create_dataloader(dataset_path, window_size, batch_size, num_workers, max_distance):
     dataset = LandsatFutureDataset(dataset_path=dataset_path, window_size=window_size, max_distance=max_distance)
     # use LandsatDataLoader
-    loader = LandsatDataLoader(dataset, batch_size, train_rate=0.2, val_rate=0.01, num_workers=num_workers)
+    loader = LandsatDataLoader(dataset, batch_size, train_rate=0.5, val_rate=0.01, num_workers=num_workers)
     train_loader, val_loader = loader.create_data_loaders()
     return train_loader, val_loader
 
@@ -98,7 +99,9 @@ def train_and_evaluate_models(models, dataset_path, batch_size, num_workers, num
         model = model.to(device)
 
         # Create experiment folder for the model
-        experiment_folder = os.path.join("runs", experiment)
+        current_time = time.strftime("%Y%m%d-%H%M%S")
+        experiment_fullname = f"{experiment}_{current_time}"
+        experiment_folder = os.path.join("runs", experiment_fullname)
         os.makedirs(experiment_folder, exist_ok=True)
 
         # Create data loader for the model
@@ -111,7 +114,9 @@ def train_and_evaluate_models(models, dataset_path, batch_size, num_workers, num
             checkpoint = torch.load(checkpoint_path)
             model.load_state_dict(checkpoint["model_state_dict"])
         else:
-            trainer = create_trainer(model, train_loader, val_loader, lr, experiment)
+            # print training model name based on model class
+            logging.info(f"Training model: {model.__class__.__name__}")
+            trainer = create_trainer(model, train_loader, val_loader, lr, experiment_fullname)
             train_model(trainer, num_epochs)
             trainer.save()
             trainer.plot_losses()
@@ -239,8 +244,8 @@ def train_and_eval_multiple_models(use_pretrained):
         # (FullyConnectedNDVIModel(sequence_length=20, hidden_size=64, num_layers=4), "fc_seq20_layers4", 0),
         # Add more models here
         # (TSFullyConnectedNDVIModel(sequence_length=5, num_years=41, num_seasons=2, year_embed_size=16, season_embed_size=16, hidden_sizes=[64, 64]), "ts_fc_5", 0),
-        (FullyConnectedNDVIModel(sequence_length=11, hidden_size=64, num_layers=3), "fc_seq11_layers3", 0),
         (TemporalPositionalNDVITransformer(embedding_dim=256, num_encoder_layers=3, sequence_length=11, start_year=1984, end_year=2024, attn_heads=8, dropout=0.1), "transformer_seq11", 0),
+        (FullyConnectedNDVIModel(sequence_length=11, hidden_size=64, num_layers=3), "fc_seq11_layers3", 0),
         (LSTMNDVIModel(sequence_length=11, hidden_size=64, num_layers=3), "lstm_seq11_layers3", 0),
         (CNNNDVIModel(sequence_length=11, num_channels=64, kernel_size=3, num_layers=3), "cnn_seq11_layers3", 0),
     ]
